@@ -11,36 +11,6 @@ using MoreLinq;
 
 namespace Clifton.Semantics
 {
-	/// <summary>
-	/// A Method.Invoke call.
-	/// </summary>
-	public class ProcessCall
-	{
-		public MethodInfo Method { get; set; }
-		public object Target { get; set; }
-		public object[] Parameters { get; set; }
-
-		public virtual void MakeCall()
-		{
-			Method.Invoke(Target, Parameters);
-		}
-	}
-
-	/// <summary>
-	/// A [dynamic].Process call.
-	/// </summary>
-	public class DynamicProcessCall<T> : ProcessCall
-	{
-		public dynamic DynamicTarget { get; set; }
-		public ISemanticPool Pool { get; set; }
-		public T Instance { get; set; }
-
-		public override void MakeCall()
-		{
-			DynamicTarget.Process(Pool, Instance);
-		}
-	}
-
 	public static class ExtensionMethods
 	{
 		// http://stackoverflow.com/questions/8868119/find-all-parent-types-both-base-classes-and-interfaces
@@ -101,7 +71,6 @@ namespace Clifton.Semantics
 
 	public interface ISemanticPool
 	{
-		void Add<T>(T obj) where T : ISemanticType;
 		void ProcessInstance<T>(T obj) where T : ISemanticType;
 	}
 
@@ -121,23 +90,18 @@ namespace Clifton.Semantics
 	public class SemanticPool : ISemanticPool
 	{
 		protected const int MAX_WORKER_THREADS = 20;
-		protected List<ThreadSemaphore<ProcessCall>> threadPool;
+		protected List<ThreadSemaphore<Action>> threadPool;
 
 		protected ConcurrentList<Type> types;
 		protected ConcurrentDictionary<Type, List<Type>> typeNotifiers;
-		protected ConcurrentQueue<ISemanticType> pool;
-		protected Semaphore semPool;
 
 		public SemanticPool()
 		{
 			types = new ConcurrentList<Type>();
 			typeNotifiers = new ConcurrentDictionary<Type, List<Type>>();
-			pool = new ConcurrentQueue<ISemanticType>();
-			semPool = new Semaphore(0, Int32.MaxValue);
-			threadPool = new List<ThreadSemaphore<ProcessCall>>();
+			threadPool = new List<ThreadSemaphore<Action>>();
 
 			InitializePoolThreads();
-			StartMonitoringPoolQueue();
 		}
 
 		/// <summary>
@@ -193,13 +157,6 @@ namespace Clifton.Semantics
 			}
 		}
 
-		public void Add<T>(T obj)
-			where T : ISemanticType
-		{
-			pool.Enqueue(obj);
-			semPool.Release();
-		}
-
 		/// <summary>
 		/// Process an instance of a specific type immediately.  The type T is determined implicitly from the parameter type, so 
 		/// a call can look like: ProcessInstance(t1)
@@ -232,12 +189,7 @@ namespace Clifton.Semantics
 				try
 				{
 					// Pick a thread that has the least work to do.
-					threadPool.MinBy(tp=>tp.Count).Enqueue(new DynamicProcessCall<T>()
-					{
-						DynamicTarget = target,
-						Pool = this,
-						Instance = obj
-					});
+					threadPool.MinBy(tp => tp.Count).Enqueue(() => target.Process(this, obj));
 				}
 				catch (Exception ex)
 				{
@@ -250,36 +202,6 @@ namespace Clifton.Semantics
 						((IDisposable)target).Dispose();
 					}
 				}
-			}
-		}
-
-		/// <summary>
-		/// Process an instance where we only know that it implements ISemanticType.
-		/// The method to invoke gets queued for executing on an independent thread.
-		/// </summary>
-		protected void ProcessInstance(int threadIdx, ISemanticType obj)
-		{
-			// We get the source object type.
-			Type tsource = obj.GetType();
-
-			List<Tuple<Type, Type>> receptors = GetReceptors(tsource);
-
-			foreach (Tuple<Type, Type> tt in receptors)
-			{
-				Type ttarget = tt.Item1;
-				// Here we need to actually acquire the method and invoke it ourselves.  The dynamic keyword doesn't work.
-
-				IReceptor target = (IReceptor)Activator.CreateInstance(ttarget);
-
-				MethodInfo method = GetProcessMethod(target, tt.Item2);
-				// In a round-robin manner, queue up the request on the current
-				// thread index then increment the index.
-				threadPool[threadIdx].Enqueue(new ProcessCall() 
-				{ 
-					Method = method, 
-					Target = target, 
-					Parameters = new object[] { this, obj } 
-				});
 			}
 		}
 
@@ -332,49 +254,26 @@ namespace Clifton.Semantics
 			{
 				Thread thread = new Thread(new ParameterizedThreadStart(ProcessPoolItem));
 				thread.IsBackground = true;
-				ThreadSemaphore<ProcessCall> ts = new ThreadSemaphore<ProcessCall>();
+				ThreadSemaphore<Action> ts = new ThreadSemaphore<Action>();
 				threadPool.Add(ts);
 				thread.Start(ts);
 			}
 		}
 
-		protected void StartMonitoringPoolQueue()
-		{
-			// We'll use task to check on our queue in a separate thread.
-			// This is the "from an async thread queue onto worker threads" process.
-			Task.Run(() =>
-			{
-				int threadIdx = 0;
-
-				while (true)
-				{
-					// Wait for something to do.
-					semPool.WaitOne();
-					ISemanticType stype;
-
-					if (pool.TryDequeue(out stype))
-					{
-						ProcessInstance(threadIdx, stype);
-						threadIdx = (threadIdx + 1) % MAX_WORKER_THREADS;
-					}
-				}
-			});
-		}
-
 		protected void ProcessPoolItem(object state)
 		{
-			ThreadSemaphore<ProcessCall> ts = (ThreadSemaphore<ProcessCall>)state;
+			ThreadSemaphore<Action> ts = (ThreadSemaphore<Action>)state;
 
 			while (true)
 			{
 				ts.WaitOne();
-				ProcessCall proc;
+				Action proc;
 
 				if (ts.TryDequeue(out proc))
 				{
 					try
 					{
-						proc.MakeCall();
+						proc();
 					}
 					catch (Exception ex)
 					{

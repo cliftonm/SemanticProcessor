@@ -30,7 +30,7 @@ namespace Main
 		public void Process(ISemanticPool pool, IOneType obj)
 		{
 			Console.WriteLine("Chaining OneType on thread ID " + Thread.CurrentThread.ManagedThreadId);
-			pool.Add(new SecondType());
+			pool.ProcessInstance(new SecondType());
 		}
 	}
 
@@ -106,20 +106,12 @@ namespace Main
 
 			// object foo = Cast<SecondType>(t3);
 
-			Console.WriteLine("Explicit procesing...");
 			sp.ProcessInstance(t1);
 			sp.ProcessInstance(t2);
 			sp.ProcessInstance(t3);
 
 			Thread.Sleep(1000);		// Wait for threaded processes to complete.
 
-			Console.WriteLine("\r\nPooled processing...");
-			sp.Add(t1);
-			sp.Add(t2);
-			sp.Add(t3);
-
-			Thread.Sleep(1000);		// Wait for threaded processes to complete.
-			
 			Console.WriteLine("\r\nChained processing...");
 			sp.RemoveTypeNotify<AReceptor, IOneType>();
 			sp.RemoveTypeNotify<AReceptor, SecondType>();
@@ -135,7 +127,7 @@ namespace Main
 			//sp.TypeNotify<Chain1, OneType>();
 			//sp.TypeNotify<Chain2, SecondType>();
 
-			sp.Add(new OneType());
+			sp.ProcessInstance(new OneType());
 
 			Thread.Sleep(1000);		// Wait for threaded processes to complete.
 		}
