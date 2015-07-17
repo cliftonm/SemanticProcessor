@@ -7,10 +7,40 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Clifton.Utils;
+using MoreLinq;
 
 namespace Clifton.Semantics
 {
+	/// <summary>
+	/// A Method.Invoke call.
+	/// </summary>
+	public class ProcessCall
+	{
+		public MethodInfo Method { get; set; }
+		public object Target { get; set; }
+		public object[] Parameters { get; set; }
+
+		public virtual void MakeCall()
+		{
+			Method.Invoke(Target, Parameters);
+		}
+	}
+
+	/// <summary>
+	/// A [dynamic].Process call.
+	/// </summary>
+	public class DynamicProcessCall<T> : ProcessCall
+	{
+		public dynamic DynamicTarget { get; set; }
+		public ISemanticPool Pool { get; set; }
+		public T Instance { get; set; }
+
+		public override void MakeCall()
+		{
+			DynamicTarget.Process(Pool, Instance);
+		}
+	}
+
 	public static class ExtensionMethods
 	{
 		// http://stackoverflow.com/questions/8868119/find-all-parent-types-both-base-classes-and-interfaces
@@ -40,7 +70,7 @@ namespace Clifton.Semantics
 
 	public class ThreadSemaphore<T>
 	{
-		public int QueueCount { get { return requests.Count; } }
+		public int Count { get { return requests.Count; } }
 		protected Semaphore sem;
 
 		// Requests on this thread.
@@ -90,34 +120,25 @@ namespace Clifton.Semantics
 
 	public class SemanticPool : ISemanticPool
 	{
-		protected List<ThreadSemaphore<ISemanticType>> threadPool;
 		protected const int MAX_WORKER_THREADS = 20;
+		protected List<ThreadSemaphore<ProcessCall>> threadPool;
 
-		protected List<Type> types;
-		protected Dictionary<Type, List<Type>> typeNotifiers;
+		protected BlockingCollection<Type> types;
+		protected ConcurrentDictionary<Type, List<Type>> typeNotifiers;
 		protected ConcurrentQueue<ISemanticType> pool;
 		protected Semaphore semPool;
 
 		public SemanticPool()
 		{
-			types = new List<Type>();
-			typeNotifiers = new Dictionary<Type, List<Type>>();
+			types = new BlockingCollection<Type>();
+			typeNotifiers = new ConcurrentDictionary<Type, List<Type>>();
 			pool = new ConcurrentQueue<ISemanticType>();
 			semPool = new Semaphore(0, Int32.MaxValue);
-			threadPool = new List<ThreadSemaphore<ISemanticType>>();
+			threadPool = new List<ThreadSemaphore<ProcessCall>>();
 
 			InitializePoolThreads();
 			StartMonitoringPoolQueue();
 		}
-
-		/// <summary>
-		/// Register a type.
-		/// </summary>
-		//public void Register<T>() 
-		//	where T : ISemanticType
-		//{
-		//	types.Add(typeof(T));
-		//}
 
 		/// <summary>
 		/// Register a receptor, auto-discovering the semantic types that it processes.
@@ -164,12 +185,12 @@ namespace Clifton.Semantics
 			where TSource : ISemanticType
 		{
 			Type tsource = typeof(TSource);
-			//List<<Type> targets = GetReceptors(tsource);
+			List<Tuple<Type, Type>> targets = GetReceptors(tsource);
 
-			//foreach (Type t in targets)
-			//{
-			//	typeNotifiers[tsource].Remove(t);
-			//}
+			foreach (Tuple<Type, Type> tt in targets)
+			{
+				typeNotifiers[tsource].Remove(tt.Item1);
+			}
 		}
 
 		public void Add<T>(T obj)
@@ -210,7 +231,13 @@ namespace Clifton.Semantics
 
 				try
 				{
-					target.Process(this, obj);
+					// Pick a thread that has the least work to do.
+					threadPool.MinBy(tp=>tp.Count).Enqueue(new DynamicProcessCall<T>()
+					{
+						DynamicTarget = target,
+						Pool = this,
+						Instance = obj
+					});
 				}
 				catch (Exception ex)
 				{
@@ -228,8 +255,9 @@ namespace Clifton.Semantics
 
 		/// <summary>
 		/// Process an instance where we only know that it implements ISemanticType.
+		/// The method to invoke gets queued for executing on an independent thread.
 		/// </summary>
-		public void ProcessInstance(ISemanticType obj)
+		protected void ProcessInstance(int threadIdx, ISemanticType obj)
 		{
 			// We get the source object type.
 			Type tsource = obj.GetType();
@@ -240,24 +268,18 @@ namespace Clifton.Semantics
 			{
 				Type ttarget = tt.Item1;
 				// Here we need to actually acquire the method and invoke it ourselves.  The dynamic keyword doesn't work.
+
 				IReceptor target = (IReceptor)Activator.CreateInstance(ttarget);
 
-				try
-				{
-					MethodInfo method = GetProcessMethod(target, tt.Item2);
-					method.Invoke(target, new object[] { this, obj });
-				}
-				catch (Exception ex)
-				{
-					Console.WriteLine(ex.Message);
-				}
-				finally
-				{
-					if (target is IDisposable)
-					{
-						((IDisposable)target).Dispose();
-					}
-				}
+				MethodInfo method = GetProcessMethod(target, tt.Item2);
+				// In a round-robin manner, queue up the request on the current
+				// thread index then increment the index.
+				threadPool[threadIdx].Enqueue(new ProcessCall() 
+				{ 
+					Method = method, 
+					Target = target, 
+					Parameters = new object[] { this, obj } 
+				});
 			}
 		}
 
@@ -310,7 +332,7 @@ namespace Clifton.Semantics
 			{
 				Thread thread = new Thread(new ParameterizedThreadStart(ProcessPoolItem));
 				thread.IsBackground = true;
-				ThreadSemaphore<ISemanticType> ts = new ThreadSemaphore<ISemanticType>();
+				ThreadSemaphore<ProcessCall> ts = new ThreadSemaphore<ProcessCall>();
 				threadPool.Add(ts);
 				thread.Start(ts);
 			}
@@ -332,9 +354,7 @@ namespace Clifton.Semantics
 
 					if (pool.TryDequeue(out stype))
 					{
-						// In a round-robin manner, queue up the request on the current
-						// thread index then increment the index.
-						threadPool[threadIdx].Enqueue(stype);
+						ProcessInstance(threadIdx, stype);
 						threadIdx = (threadIdx + 1) % MAX_WORKER_THREADS;
 					}
 				}
@@ -343,16 +363,30 @@ namespace Clifton.Semantics
 
 		protected void ProcessPoolItem(object state)
 		{
-			ThreadSemaphore<ISemanticType> ts = (ThreadSemaphore<ISemanticType>)state;
+			ThreadSemaphore<ProcessCall> ts = (ThreadSemaphore<ProcessCall>)state;
 
 			while (true)
 			{
 				ts.WaitOne();
-				ISemanticType stype;
+				ProcessCall proc;
 
-				if (ts.TryDequeue(out stype))
+				if (ts.TryDequeue(out proc))
 				{
-					ProcessInstance(stype);
+					try
+					{
+						proc.MakeCall();
+					}
+					catch (Exception ex)
+					{
+						Console.WriteLine(ex.Message);
+					}
+					finally
+					{
+						if (proc.Target is IDisposable)
+						{
+							((IDisposable)proc.Target).Dispose();
+						}
+					}
 				}
 			}
 		}

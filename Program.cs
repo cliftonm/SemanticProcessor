@@ -106,14 +106,12 @@ namespace Main
 
 			// object foo = Cast<SecondType>(t3);
 
-			// Executes on this thread.
 			Console.WriteLine("Explicit procesing...");
-			Console.WriteLine("T1:");
 			sp.ProcessInstance(t1);
-			Console.WriteLine("T2:");
 			sp.ProcessInstance(t2);
-			Console.WriteLine("T3:");
 			sp.ProcessInstance(t3);
+
+			Thread.Sleep(1000);		// Wait for threaded processes to complete.
 
 			Console.WriteLine("\r\nPooled processing...");
 			sp.Add(t1);
