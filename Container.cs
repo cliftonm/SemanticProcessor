@@ -123,14 +123,14 @@ namespace Clifton.Semantics
 		protected const int MAX_WORKER_THREADS = 20;
 		protected List<ThreadSemaphore<ProcessCall>> threadPool;
 
-		protected BlockingCollection<Type> types;
+		protected ConcurrentList<Type> types;
 		protected ConcurrentDictionary<Type, List<Type>> typeNotifiers;
 		protected ConcurrentQueue<ISemanticType> pool;
 		protected Semaphore semPool;
 
 		public SemanticPool()
 		{
-			types = new BlockingCollection<Type>();
+			types = new ConcurrentList<Type>();
 			typeNotifiers = new ConcurrentDictionary<Type, List<Type>>();
 			pool = new ConcurrentQueue<ISemanticType>();
 			semPool = new Semaphore(0, Int32.MaxValue);
