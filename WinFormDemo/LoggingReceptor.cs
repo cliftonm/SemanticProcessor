@@ -16,12 +16,12 @@ namespace WinFormDemo
 	/// </summary>
 	public class LoggingReceptor : IReceptor
 	{
-		public void Process(ISemanticProcessor proc, ISemanticType type)
+		public void Process(ISemanticProcessor proc, IMembrane membrane, ISemanticType type)
 		{
 			// Don't log our log message, otherewise we get an infinite loop!
 			if (!(type is ST_Log))
 			{
-				proc.ProcessInstance(new ST_Log() { Message = type.GetType().ToString() });
+				proc.ProcessInstance(proc.Logger, new ST_Log() { Message = type.GetType().ToString() });
 			}
 		}
 	}

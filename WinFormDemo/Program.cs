@@ -29,8 +29,8 @@ namespace WinFormDemo
 		static void InitializeSemantics(IReceptor form)
 		{
 			SemProc = new SemanticProcessor();
-			SemProc.Register<FeedReaderReceptor>();
-			SemProc.Register<LoggingReceptor>();
+			SemProc.Register<FeedReaderReceptor, Clifton.Semantics.SurfaceMembrane>();
+			SemProc.Register<LoggingReceptor, Clifton.Semantics.SurfaceMembrane>();
 			SemProc.Register(form);
 		}
 	}

@@ -13,10 +13,10 @@ namespace WinFormDemo
 {
 	public class FeedReaderReceptor : IReceptor
 	{
-		public void Process(ISemanticProcessor proc, ST_Url url)
+		public void Process(ISemanticProcessor proc, IMembrane membrane, ST_Url url)
 		{
 			SyndicationFeed sf = GetFeed(url.Url);
-			sf.Items.ForEach(si => proc.ProcessInstance(new ST_RssFeedItem() { Text = si.Summary.Text }));
+			sf.Items.ForEach(si => proc.ProcessInstance(membrane, new ST_RssFeedItem() { Text = si.Summary.Text }));
 		}
 
 		protected SyndicationFeed GetFeed(string feedUrl)

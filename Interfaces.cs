@@ -8,7 +8,13 @@ namespace Clifton.Semantics
 {
 	public interface ISemanticProcessor
 	{
-		void ProcessInstance<T>(T obj) where T : ISemanticType;
+		IMembrane Surface { get; }
+		IMembrane Logger { get; }
+		void ProcessInstance<T>(IMembrane membrane, T obj) where T : ISemanticType;
+	}
+
+	public interface IMembrane
+	{
 	}
 
 	public interface ISemanticType
@@ -21,6 +27,6 @@ namespace Clifton.Semantics
 
 	public interface IReceptor<T> : IReceptor
 	{
-		void Process(ISemanticProcessor pool, T obj);
+		void Process(ISemanticProcessor pool, IMembrane membrane, T obj);
 	}
 }

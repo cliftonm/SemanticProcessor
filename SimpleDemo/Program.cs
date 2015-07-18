@@ -27,16 +27,16 @@ namespace Main
 
 	public class Chain1 : IReceptor<IOneType>
 	{
-		public void Process(ISemanticProcessor pool, IOneType obj)
+		public void Process(ISemanticProcessor pool, IMembrane membrane, IOneType obj)
 		{
 			Console.WriteLine("Chaining OneType on thread ID " + Thread.CurrentThread.ManagedThreadId);
-			pool.ProcessInstance(new SecondType());
+			pool.ProcessInstance(membrane, new SecondType());
 		}
 	}
 
 	public class Chain2 : IReceptor<SecondType>
 	{
-		public void Process(ISemanticProcessor pool, SecondType obj)
+		public void Process(ISemanticProcessor pool, IMembrane membrane, SecondType obj)
 		{
 			Console.WriteLine("Chaining SecondType on thread ID " + Thread.CurrentThread.ManagedThreadId);
 		}
@@ -47,12 +47,12 @@ namespace Main
 
 	public class AReceptor : IReceptor //, IReceptor<IOneType>, IReceptor<SecondType>// , IDisposable	// demonstrate dispose being called.
 	{
-		public void Process(ISemanticProcessor pool, IOneType obj)
+		public void Process(ISemanticProcessor pool, IMembrane membrane, IOneType obj)
 		{
 			Console.WriteLine("A: Processing IOneType on thread ID " + Thread.CurrentThread.ManagedThreadId);
 		}
 
-		public void Process(ISemanticProcessor pool, SecondType obj)
+		public void Process(ISemanticProcessor pool, IMembrane membrane, SecondType obj)
 		{
 			Console.WriteLine("A: Processing SecondType on thread ID " + Thread.CurrentThread.ManagedThreadId);
 		}
@@ -65,7 +65,7 @@ namespace Main
 
 	public class BReceptor : IReceptor
 	{
-		public void Process(ISemanticProcessor pool, OneType obj)
+		public void Process(ISemanticProcessor pool, IMembrane membrane, OneType obj)
 		{
 			Console.WriteLine("B: Processing OneType on thread ID " + Thread.CurrentThread.ManagedThreadId);
 		}
@@ -73,7 +73,7 @@ namespace Main
 
 	public class CReceptor : IReceptor
 	{
-		public void Process(ISemanticProcessor pool, SecondDerivedType obj)
+		public void Process(ISemanticProcessor pool, IMembrane membrane, SecondDerivedType obj)
 		{
 			Console.WriteLine("C: Processing SecondDerivedType on thread ID " + Thread.CurrentThread.ManagedThreadId);
 		}
@@ -92,9 +92,9 @@ namespace Main
 			SemanticProcessor sp = new SemanticProcessor();
 
 			// AnotherType gets notified when instances of OneType are added to the pool.
-			sp.Register<AReceptor>();		// auto register
-			sp.Register<BReceptor>();
-			sp.Register<CReceptor>();
+			sp.Register<AReceptor, Clifton.Semantics.SurfaceMembrane>();		// auto register
+			sp.Register<BReceptor, Clifton.Semantics.SurfaceMembrane>();
+			sp.Register<CReceptor, Clifton.Semantics.SurfaceMembrane>();
 
 			// Explicit register
 			//sp.TypeNotify<AReceptor, OneType>();
@@ -106,9 +106,9 @@ namespace Main
 
 			// object foo = Cast<SecondType>(t3);
 
-			sp.ProcessInstance(t1);
-			sp.ProcessInstance(t2);
-			sp.ProcessInstance(t3);
+			sp.ProcessInstance(sp.Surface, t1);
+			sp.ProcessInstance(sp.Surface, t2);
+			sp.ProcessInstance(sp.Surface, t3);
 
 			Thread.Sleep(1000);		// Wait for threaded processes to complete.
 
@@ -120,14 +120,14 @@ namespace Main
 
 			// Chaining...
 			// auto register:
-			sp.Register<Chain1>();
-			sp.Register<Chain2>();
+			sp.Register<Chain1, Clifton.Semantics.SurfaceMembrane>();
+			sp.Register<Chain2, Clifton.Semantics.SurfaceMembrane>();
 
 			// Explicit register:
 			//sp.TypeNotify<Chain1, OneType>();
 			//sp.TypeNotify<Chain2, SecondType>();
 
-			sp.ProcessInstance(new OneType());
+			sp.ProcessInstance(sp.Surface, new OneType());
 
 			Thread.Sleep(1000);		// Wait for threaded processes to complete.
 		}

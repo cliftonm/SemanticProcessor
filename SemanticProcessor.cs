@@ -13,8 +13,12 @@ namespace Clifton.Semantics
 {
 	public class SemanticProcessor : ISemanticProcessor
 	{
+		public IMembrane Surface { get; protected set; }
+		public IMembrane Logger { get; protected set; }
+
 		protected const int MAX_WORKER_THREADS = 20;
 		protected List<ThreadSemaphore<Action>> threadPool;
+		protected ConcurrentDictionary<Type, IMembrane> membranes;
 
 		protected ConcurrentList<IReceptor> statefulReceptors;
 		protected ConcurrentDictionary<Type, List<Type>> typeNotifiers;
@@ -22,35 +26,34 @@ namespace Clifton.Semantics
 
 		public SemanticProcessor()
 		{
+			// Our two hard-coded membranes:
+			Surface = new SurfaceMembrane();
+			Logger = new LoggerMembrane();
+
+			membranes = new ConcurrentDictionary<Type, IMembrane>();
 			statefulReceptors = new ConcurrentList<IReceptor>();
 			typeNotifiers = new ConcurrentDictionary<Type, List<Type>>();
 			instanceNotifiers = new ConcurrentDictionary<Type, List<IReceptor>>();
 			threadPool = new List<ThreadSemaphore<Action>>();
+
+			// Register our two membranes.
+			membranes[Surface.GetType()] = Surface;
+			membranes[Logger.GetType()] = Logger;
 
 			InitializePoolThreads();
 		}
 
 		/// <summary>
 		/// Register a receptor, auto-discovering the semantic types that it processes.
+		/// Receptors live in membranes, to we always specify the membrane type.  The membrane
+		/// instance is auto-created for us if necessary.
 		/// </summary>
-		public void Register<T>()
+		public void Register<T, M>()
 			where T : IReceptor
+			where M : IMembrane
 		{
-			Type ttarget = typeof(T);
-
-			MethodInfo[] methods = ttarget.GetMethods();
-
-			foreach (MethodInfo method in methods)
-			{
-				if (method.Name == "Process")
-				{
-					ParameterInfo[] parameters = method.GetParameters();
-
-					// Semantic types are always the second parameter
-					// Types can either be concrete or interfaces.
-					TypeNotify<T>(parameters[1].ParameterType);
-				}
-			}
+			Register<T>();
+			RegisterMembrane<M>();
 		}
 
 		/// <summary>
@@ -65,10 +68,11 @@ namespace Clifton.Semantics
 
 			foreach (MethodInfo method in methods)
 			{
+				// TODO: Use attribute, not specific function name.
 				if (method.Name == "Process")
 				{
 					ParameterInfo[] parameters = method.GetParameters();
-					InstanceNotify(receptor, parameters[1].ParameterType);
+					InstanceNotify(receptor, parameters[2].ParameterType);
 				}
 			}
 		}
@@ -95,11 +99,11 @@ namespace Clifton.Semantics
 			where TSource : ISemanticType
 		{
 			Type tsource = typeof(TSource);
-			List<Tuple<Type, Type>> targets = GetReceptors(tsource);
+			List<Type> targets = GetReceptors(tsource);
 
-			foreach (Tuple<Type, Type> tt in targets)
+			foreach (Type ttarget in targets)
 			{
-				typeNotifiers[tsource].Remove(tt.Item1);
+				typeNotifiers[tsource].Remove(ttarget);
 			}
 		}
 
@@ -107,7 +111,7 @@ namespace Clifton.Semantics
 		/// Process an instance of a specific type immediately.  The type T is determined implicitly from the parameter type, so 
 		/// a call can look like: ProcessInstance(t1)
 		/// </summary>
-		public void ProcessInstance<T>(T obj)
+		public void ProcessInstance<T>(IMembrane membrane, T obj)
 			where T : ISemanticType
 		{
 			// ProcessInstance((ISemanticType)obj);
@@ -122,18 +126,17 @@ namespace Clifton.Semantics
 			// the Process call on a separate thread.  Constructing the target type ensures that the
 			// target is stateless -- state must be managed external of any type!
 
-			List<Tuple<Type, Type>> receptors = GetReceptors(tsource);
+			List<Type> receptors = GetReceptors(tsource);
 			
-			foreach (Tuple<Type, Type> tt in receptors)
+			foreach (Type ttarget in receptors)
 			{
-				Type ttarget = tt.Item1;
 				// We can use dynamic here because we have a <T> generic to resolve the call parameter.
 				// If we instead only have the interface ISemanticType, dynamic does not downcast to the concrete type --
 				// therefore it can't locate the call point because it implements the concrete type.
 				dynamic target = Activator.CreateInstance(ttarget);
 
 				// Pick a thread that has the least work to do.
-				threadPool.MinBy(tp => tp.Count).Enqueue(() => target.Process(this, obj));
+				threadPool.MinBy(tp => tp.Count).Enqueue(() => target.Process(this, membrane, obj));
 			}
 
 			// Also check stateful receptors
@@ -142,9 +145,42 @@ namespace Clifton.Semantics
 			foreach (IReceptor receptor in sreceptors)
 			{
 				dynamic target = receptor;
-				threadPool.MinBy(tp => tp.Count).Enqueue(() => target.Process(this, obj));
+				threadPool.MinBy(tp => tp.Count).Enqueue(() => target.Process(this, membrane, obj));
 			}
 		}
+
+		protected void Register<T>()
+			where T : IReceptor
+		{
+			Type ttarget = typeof(T);
+			MethodInfo[] methods = ttarget.GetMethods();
+
+			foreach (MethodInfo method in methods)
+			{
+				// TODO: Use attribute, not specific function name.
+				if (method.Name == "Process")
+				{
+					ParameterInfo[] parameters = method.GetParameters();
+
+					// Semantic types are always the third parameter
+					// Types can either be concrete or interfaces.
+					TypeNotify<T>(parameters[2].ParameterType);
+				}
+			}
+		}
+
+		protected void RegisterMembrane<M>()
+			where M:IMembrane
+		{
+			Type m = typeof(M);
+
+			if (!membranes.ContainsKey(m))
+			{
+				IMembrane membrane = (IMembrane)Activator.CreateInstance(m);
+				membranes[m] = membrane;
+			}
+		}
+
 		/// <summary>
 		/// Add a type notifier for a source type.  The source type can be either a concrete class type or an interface type.
 		/// As a result, the list of targets will, in the dictionary, be distinct.  This is also the case for derived types.
@@ -177,15 +213,15 @@ namespace Clifton.Semantics
 			targets.Add(receptor);
 		}
 
-		protected List<Tuple<Type, Type>> GetReceptors(Type tsource)
+		protected List<Type> GetReceptors(Type tsource)
 		{
-			List<Tuple<Type, Type>> receptors = new List<Tuple<Type, Type>>();
+			List<Type> receptors = new List<Type>();
 			List<Type> baseList;
 
 			// Get the type notifiers for the provided type.
 			if (typeNotifiers.TryGetValue(tsource, out baseList))
 			{
-				baseList.ForEach(t => receptors.Add(new Tuple<Type, Type>(t, tsource)));
+				receptors.AddRange(baseList);
 			}
 			
 			// Check interfaces and base types of the source type as well to see if there are receptors handling the interfaces.
@@ -196,7 +232,7 @@ namespace Clifton.Semantics
 
 				if (typeNotifiers.TryGetValue(t, out tReceptors))
 				{
-					tReceptors.ForEach(rt => receptors.Add(new Tuple<Type, Type>(rt, t)));
+					receptors.AddRange(tReceptors);
 				}
 			}
 

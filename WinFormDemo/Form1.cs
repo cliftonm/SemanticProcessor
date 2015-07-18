@@ -25,7 +25,7 @@ namespace WinFormDemo
 		{
 		}
 
-		public void Process(ISemanticProcessor proc, ST_RssFeedItem feedItem)
+		public void Process(ISemanticProcessor proc, IMembrane membrane, ST_RssFeedItem feedItem)
 		{
 			this.BeginInvoke(() =>
 				{
@@ -34,7 +34,7 @@ namespace WinFormDemo
 				});
 		}
 
-		public void Process(ISemanticProcessor proc, ST_Log log)
+		public void Process(ISemanticProcessor proc, IMembrane membrane, ST_Log log)
 		{
 			this.BeginInvoke(() =>
 				{
@@ -48,7 +48,7 @@ namespace WinFormDemo
 			lblPleaseWait.Visible = true;
 			tbHoroscope.Text = "";
 
-			Program.SemProc.ProcessInstance(new ST_Url() 
+			Program.SemProc.ProcessInstance(Program.SemProc.Surface, new ST_Url() 
 			{ 
 				Url = String.Format("http://www.findyourfate.com/rss/dailyhoroscope-feed.asp?sign={0}", cbSign.SelectedItem.ToString())
 			});
