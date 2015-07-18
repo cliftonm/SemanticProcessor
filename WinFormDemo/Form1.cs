@@ -23,11 +23,11 @@ namespace WinFormDemo
 
 		protected void FormShown(object sender, EventArgs e)
 		{
-			// Put a feed reader into each membrane:
+			// Put a feed reader receptors into each membrane:
 			Program.SemProc.Register<MyHoroscopeMembrane, FeedReaderReceptor>();
 			Program.SemProc.Register<PartnerHoroscopeMembrane, FeedReaderReceptor>();
 
-			// Put the horoscope readers into each membrane;
+			// Put the horoscope receptors into each membrane;
 			Program.SemProc.Register<MyHoroscopeMembrane>(new HoroscopeReceptor(lblPleaseWait, tbHoroscope, "Your Horoscope:"));
 			Program.SemProc.Register<PartnerHoroscopeMembrane>(new HoroscopeReceptor(lblPleaseWaitPartner, tbHoroscopePartner, "Partner's Horoscope:"));
 
@@ -35,7 +35,7 @@ namespace WinFormDemo
 			// When a feed reader processes the sign, it will emit the summary into its membrane, to be picked up by the
 			// horoscope reader receptor in that membrane.
 
-			// Register our logger receptor.
+			// Register ourselves as a handler for ST_Log messages coming from the Logger membrane:
 			Program.SemProc.Register<LoggerMembrane>(this);
 		}
 
