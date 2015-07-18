@@ -18,10 +18,14 @@ namespace WinFormDemo
 	{
 		public void Process(ISemanticProcessor proc, IMembrane membrane, ISemanticType type)
 		{
-			// Don't log our log message, otherewise we get an infinite loop!
+			// Don't log our log message, otherwise we get an infinite loop!
 			if (!(type is ST_Log))
 			{
-				proc.ProcessInstance(proc.Logger, new ST_Log() { Message = type.GetType().ToString() });
+				// One way, with instances:
+				// proc.ProcessInstance(proc.Logger, new ST_Log() { Message = type.GetType().ToString() });
+
+				// Another way, strictly with types:
+				proc.ProcessInstance<LoggerMembrane, ST_Log>(log => log.Message = type.GetType().ToString());
 			}
 		}
 	}

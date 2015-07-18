@@ -92,9 +92,9 @@ namespace Main
 			SemanticProcessor sp = new SemanticProcessor();
 
 			// AnotherType gets notified when instances of OneType are added to the pool.
-			sp.Register<AReceptor, Clifton.Semantics.SurfaceMembrane>();		// auto register
-			sp.Register<BReceptor, Clifton.Semantics.SurfaceMembrane>();
-			sp.Register<CReceptor, Clifton.Semantics.SurfaceMembrane>();
+			sp.Register<SurfaceMembrane, AReceptor>();		// auto register
+			sp.Register<SurfaceMembrane, BReceptor>();
+			sp.Register<SurfaceMembrane, CReceptor>();
 
 			// Explicit register
 			//sp.TypeNotify<AReceptor, OneType>();
@@ -113,15 +113,15 @@ namespace Main
 			Thread.Sleep(1000);		// Wait for threaded processes to complete.
 
 			Console.WriteLine("\r\nChained processing...");
-			sp.RemoveTypeNotify<AReceptor, IOneType>();
-			sp.RemoveTypeNotify<AReceptor, SecondType>();
-			sp.RemoveTypeNotify<BReceptor, OneType>();
-			sp.RemoveTypeNotify<CReceptor, SecondDerivedType>();
+			sp.RemoveTypeNotify<SurfaceMembrane, AReceptor, IOneType>();
+			sp.RemoveTypeNotify<SurfaceMembrane, AReceptor, SecondType>();
+			sp.RemoveTypeNotify<SurfaceMembrane, BReceptor, OneType>();
+			sp.RemoveTypeNotify<SurfaceMembrane, CReceptor, SecondDerivedType>();
 
 			// Chaining...
 			// auto register:
-			sp.Register<Chain1, Clifton.Semantics.SurfaceMembrane>();
-			sp.Register<Chain2, Clifton.Semantics.SurfaceMembrane>();
+			sp.Register<SurfaceMembrane, Chain1>();
+			sp.Register<SurfaceMembrane, Chain2>();
 
 			// Explicit register:
 			//sp.TypeNotify<Chain1, OneType>();

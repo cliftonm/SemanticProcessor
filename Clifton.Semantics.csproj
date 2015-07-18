@@ -60,6 +60,10 @@
       <Project>{30a6beab-bcf6-4d8d-bd2a-46f33c191ebc}</Project>
       <Name>MoreLinq</Name>
     </ProjectReference>
+    <ProjectReference Include="Clifton.Extensions\Clifton.Extensions.csproj">
+      <Project>{650cc65c-3d10-44fc-aeda-2f34c83a525d}</Project>
+      <Name>Clifton.Extensions</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

@@ -9,6 +9,8 @@ using System.Threading.Tasks;
 
 using MoreLinq;
 
+using Clifton.Extensions;
+
 namespace Clifton.Semantics
 {
 	public class SemanticProcessor : ISemanticProcessor
@@ -19,6 +21,8 @@ namespace Clifton.Semantics
 		protected const int MAX_WORKER_THREADS = 20;
 		protected List<ThreadSemaphore<Action>> threadPool;
 		protected ConcurrentDictionary<Type, IMembrane> membranes;
+		protected ConcurrentDictionary<IMembrane, List<Type>> membraneReceptorTypes;
+		protected ConcurrentDictionary<IMembrane, List<IReceptor>> membraneReceptorInstances;
 
 		protected ConcurrentList<IReceptor> statefulReceptors;
 		protected ConcurrentDictionary<Type, List<Type>> typeNotifiers;
@@ -26,11 +30,14 @@ namespace Clifton.Semantics
 
 		public SemanticProcessor()
 		{
-			// Our two hard-coded membranes:
-			Surface = new SurfaceMembrane();
-			Logger = new LoggerMembrane();
-
 			membranes = new ConcurrentDictionary<Type, IMembrane>();
+			membraneReceptorTypes = new ConcurrentDictionary<IMembrane, List<Type>>();
+			membraneReceptorInstances = new ConcurrentDictionary<IMembrane, List<IReceptor>>();
+
+			// Our two hard-coded membranes:
+			Surface = RegisterMembrane<SurfaceMembrane>();
+			Logger = RegisterMembrane<LoggerMembrane>();
+
 			statefulReceptors = new ConcurrentList<IReceptor>();
 			typeNotifiers = new ConcurrentDictionary<Type, List<Type>>();
 			instanceNotifiers = new ConcurrentDictionary<Type, List<IReceptor>>();
@@ -43,23 +50,42 @@ namespace Clifton.Semantics
 			InitializePoolThreads();
 		}
 
+		public IMembrane RegisterMembrane<M>()
+			where M : IMembrane
+		{
+			IMembrane membrane = RegisterMembrane(typeof(M));
+
+			return membrane;
+		}
+
 		/// <summary>
 		/// Register a receptor, auto-discovering the semantic types that it processes.
 		/// Receptors live in membranes, to we always specify the membrane type.  The membrane
 		/// instance is auto-created for us if necessary.
 		/// </summary>
-		public void Register<T, M>()
-			where T : IReceptor
+		public void Register<M, T>()
 			where M : IMembrane
+			where T : IReceptor
 		{
 			Register<T>();
-			RegisterMembrane<M>();
+			IMembrane membrane = RegisterMembrane(typeof(M));
+			membraneReceptorTypes[membrane].Add(typeof(T));
 		}
 
 		/// <summary>
-		/// Register a stateful receptor.
+		/// Register an instance receptor living in a membrane type.
 		/// </summary>
-		public void Register(IReceptor receptor)
+		public void Register<M>(IReceptor receptor)
+			where M : IMembrane
+		{
+			IMembrane membrane = RegisterMembrane(typeof(M));
+			Register(membrane, receptor);
+		}
+
+		/// <summary>
+		/// Register a stateful receptor contained within the specified membrane.
+		/// </summary>
+		public void Register(IMembrane membrane, IReceptor receptor)
 		{
 			statefulReceptors.Add(receptor);
 			Type ttarget = receptor.GetType();
@@ -75,36 +101,52 @@ namespace Clifton.Semantics
 					InstanceNotify(receptor, parameters[2].ParameterType);
 				}
 			}
-		}
 
-		/// <summary>
-		/// Explicitly register a receptor type for a semantic type.  
-		/// The target receptor type will be notified of new instances of the source semantic type.
-		/// Source types can be concrete types, interface types, or derived types, but must implement ISemanticType
-		/// somewhere in the inheritance tree.
-		/// </summary>
-		public void TypeNotify<TTarget, TSource>() 
-			where TTarget : IReceptor 
-			where TSource : ISemanticType
-		{
-			TypeNotify<TTarget>(typeof(TSource));
+			membranes[membrane.GetType()] = membrane;
+			membraneReceptorInstances[membrane].Add(receptor);
 		}
 
 		/// <summary>
 		/// Remove a semantic (source) type from a target (receptor).
 		/// The target type will no longer receive notifications of source type instances.
 		/// </summary>
-		public void RemoveTypeNotify<TTarget, TSource>()
+		public void RemoveTypeNotify<TMembrane, TTarget, TSource>()
+			where TMembrane : IMembrane
 			where TTarget : IReceptor
 			where TSource : ISemanticType
 		{
 			Type tsource = typeof(TSource);
-			List<Type> targets = GetReceptors(tsource);
+			IMembrane membrane = membranes[typeof(TMembrane)];
+			List<Type> targets = GetReceptors(membrane, tsource);
 
 			foreach (Type ttarget in targets)
 			{
 				typeNotifiers[tsource].Remove(ttarget);
 			}
+		}
+		
+		/// <summary>
+		/// Process a semantic type, allowing the caller to specify an initializer before processing the instance.
+		/// </summary>
+		public void ProcessInstance<M, T>(Action<T> initializer = null)
+			where M : IMembrane
+			where T : ISemanticType
+		{
+			T inst = Activator.CreateInstance<T>();
+			initializer.IfNotNull(i => i(inst));
+			ProcessInstance<M, T>(inst);
+		}
+
+		/// <summary>
+		/// Process an instance in a given membrane type.
+		/// </summary>
+		public void ProcessInstance<M, T>(T obj)
+			where M : IMembrane
+			where T : ISemanticType
+		{
+			Type mtype = typeof(M);
+			IMembrane membrane = membranes[mtype];
+			ProcessInstance<T>(membrane, obj);
 		}
 
 		/// <summary>
@@ -126,7 +168,12 @@ namespace Clifton.Semantics
 			// the Process call on a separate thread.  Constructing the target type ensures that the
 			// target is stateless -- state must be managed external of any type!
 
-			List<Type> receptors = GetReceptors(tsource);
+			List<Type> receptors = GetReceptors(membrane, tsource);
+
+			if (!(membrane is LoggerMembrane))
+			{
+				ProcessInstance(Logger, obj);
+			}
 			
 			foreach (Type ttarget in receptors)
 			{
@@ -140,7 +187,7 @@ namespace Clifton.Semantics
 			}
 
 			// Also check stateful receptors
-			List<IReceptor> sreceptors = GetStatefulReceptors(tsource);
+			List<IReceptor> sreceptors = GetStatefulReceptors(membrane, tsource);
 
 			foreach (IReceptor receptor in sreceptors)
 			{
@@ -169,16 +216,19 @@ namespace Clifton.Semantics
 			}
 		}
 
-		protected void RegisterMembrane<M>()
-			where M:IMembrane
+		protected IMembrane RegisterMembrane(Type m)
 		{
-			Type m = typeof(M);
+			IMembrane membrane;
 
-			if (!membranes.ContainsKey(m))
+			if (!membranes.TryGetValue(m, out membrane))
 			{
-				IMembrane membrane = (IMembrane)Activator.CreateInstance(m);
+				membrane = (IMembrane)Activator.CreateInstance(m);
 				membranes[m] = membrane;
+				membraneReceptorTypes[membrane] = new List<Type>();
+				membraneReceptorInstances[membrane] = new List<IReceptor>();
 			}
+
+			return membrane;
 		}
 
 		/// <summary>
@@ -213,7 +263,7 @@ namespace Clifton.Semantics
 			targets.Add(receptor);
 		}
 
-		protected List<Type> GetReceptors(Type tsource)
+		protected List<Type> GetReceptors(IMembrane membrane, Type tsource)
 		{
 			List<Type> receptors = new List<Type>();
 			List<Type> baseList;
@@ -221,7 +271,9 @@ namespace Clifton.Semantics
 			// Get the type notifiers for the provided type.
 			if (typeNotifiers.TryGetValue(tsource, out baseList))
 			{
-				receptors.AddRange(baseList);
+				// Add only receptors that are in the membrane for the semantic instance being processed.
+				// TODO: This is where we could put in the rules for moving up/down the membrane hierarchy.
+				receptors.AddRange(membraneReceptorTypes[membrane].Where(t => baseList.Contains(t)));
 			}
 			
 			// Check interfaces and base types of the source type as well to see if there are receptors handling the interfaces.
@@ -232,21 +284,23 @@ namespace Clifton.Semantics
 
 				if (typeNotifiers.TryGetValue(t, out tReceptors))
 				{
-					receptors.AddRange(tReceptors);
+					receptors.AddRange(membraneReceptorTypes[membrane].Where(tr => tReceptors.Contains(tr)));
 				}
 			}
 
 			return receptors;
 		}
 
-		protected List<IReceptor> GetStatefulReceptors(Type tsource)
+		protected List<IReceptor> GetStatefulReceptors(IMembrane membrane, Type tsource)
 		{
 			List<IReceptor> receptors = new List<IReceptor>();
 			List<IReceptor> baseList;
 
 			if (instanceNotifiers.TryGetValue(tsource, out baseList))
 			{
-				receptors.AddRange(baseList);
+				// Add only receptors that are in the membrane for the semantic instance being processed.
+				// TODO: This is where we could put in the rules for moving up/down the membrane hierarchy.
+				receptors.AddRange(membraneReceptorInstances[membrane].Where(t => baseList.Contains(t)));
 			}
 
 			// Check interfaces and base types of the source type as well to see if there are receptors handling the interfaces.
@@ -257,7 +311,7 @@ namespace Clifton.Semantics
 
 				if (instanceNotifiers.TryGetValue(t, out tReceptors))
 				{
-					receptors.AddRange(tReceptors);
+					receptors.AddRange(membraneReceptorInstances[membrane].Where(tr => tReceptors.Contains(tr)));
 				}
 			}
 

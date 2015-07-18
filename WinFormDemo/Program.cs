@@ -21,17 +21,18 @@ namespace WinFormDemo
 			Application.EnableVisualStyles();
 			Application.SetCompatibleTextRenderingDefault(false);
 			Form1 form = new Form1();
-			InitializeSemantics(form);
+			SemProc = new SemanticProcessor();
+			SemProc.Register<LoggerMembrane, LoggingReceptor>();
+			// InitializeSemantics(form);
 
 			Application.Run(form);
 		}
 
 		static void InitializeSemantics(IReceptor form)
 		{
-			SemProc = new SemanticProcessor();
-			SemProc.Register<FeedReaderReceptor, Clifton.Semantics.SurfaceMembrane>();
-			SemProc.Register<LoggingReceptor, Clifton.Semantics.SurfaceMembrane>();
-			SemProc.Register(form);
+			// SemProc = new SemanticProcessor();
+			// SemProc.Register<SurfaceMembrane, FeedReaderReceptor>();
+			// SemProc.Register<LoggerMembrane, LoggingReceptor>();
 		}
 	}
 }
