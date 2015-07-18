@@ -14,7 +14,7 @@ namespace Main
 	}
 
 	public class OneType : IOneType
-	{ 
+	{
 	}
 
 	public class SecondType : ISemanticType
@@ -27,7 +27,7 @@ namespace Main
 
 	public class Chain1 : IReceptor<IOneType>
 	{
-		public void Process(ISemanticPool pool, IOneType obj)
+		public void Process(ISemanticProcessor pool, IOneType obj)
 		{
 			Console.WriteLine("Chaining OneType on thread ID " + Thread.CurrentThread.ManagedThreadId);
 			pool.ProcessInstance(new SecondType());
@@ -36,7 +36,7 @@ namespace Main
 
 	public class Chain2 : IReceptor<SecondType>
 	{
-		public void Process(ISemanticPool pool, SecondType obj)
+		public void Process(ISemanticProcessor pool, SecondType obj)
 		{
 			Console.WriteLine("Chaining SecondType on thread ID " + Thread.CurrentThread.ManagedThreadId);
 		}
@@ -45,14 +45,14 @@ namespace Main
 	// Specifying the receptor semantic types is optional, at a minimum, the receptor needs to only derive from IReceptor.
 	// public class AnotherType : IReceptor<IOneType>, IReceptor<SecondType>
 
-	public class AReceptor : IReceptor // IReceptor<IOneType>, IReceptor<SecondType>// , IDisposable	// demonstrate dispose being called.
+	public class AReceptor : IReceptor //, IReceptor<IOneType>, IReceptor<SecondType>// , IDisposable	// demonstrate dispose being called.
 	{
-		public void Process(ISemanticPool pool, IOneType obj)
+		public void Process(ISemanticProcessor pool, IOneType obj)
 		{
 			Console.WriteLine("A: Processing IOneType on thread ID " + Thread.CurrentThread.ManagedThreadId);
 		}
 
-		public void Process(ISemanticPool pool, SecondType obj)
+		public void Process(ISemanticProcessor pool, SecondType obj)
 		{
 			Console.WriteLine("A: Processing SecondType on thread ID " + Thread.CurrentThread.ManagedThreadId);
 		}
@@ -65,7 +65,7 @@ namespace Main
 
 	public class BReceptor : IReceptor
 	{
-		public void Process(ISemanticPool pool, OneType obj)
+		public void Process(ISemanticProcessor pool, OneType obj)
 		{
 			Console.WriteLine("B: Processing OneType on thread ID " + Thread.CurrentThread.ManagedThreadId);
 		}
@@ -73,7 +73,7 @@ namespace Main
 
 	public class CReceptor : IReceptor
 	{
-		public void Process(ISemanticPool pool, SecondDerivedType obj)
+		public void Process(ISemanticProcessor pool, SecondDerivedType obj)
 		{
 			Console.WriteLine("C: Processing SecondDerivedType on thread ID " + Thread.CurrentThread.ManagedThreadId);
 		}
@@ -89,7 +89,7 @@ namespace Main
 
 		static void Main(string[] args)
 		{
-			SemanticPool sp = new SemanticPool();
+			SemanticProcessor sp = new SemanticProcessor();
 
 			// AnotherType gets notified when instances of OneType are added to the pool.
 			sp.Register<AReceptor>();		// auto register
