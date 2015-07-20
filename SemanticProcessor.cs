@@ -142,13 +142,13 @@ namespace Clifton.Semantics
 		/// <summary>
 		/// Process a semantic type, allowing the caller to specify an initializer before processing the instance.
 		/// </summary>
-		public void ProcessInstance<M, T>(Action<T> initializer)
+		public void ProcessInstance<M, T>(Action<T> initializer, bool processOnCallerThread = false)
 			where M : IMembrane
 			where T : ISemanticType, new()
 		{
 			T inst = new T();
 			initializer.IfNotNull(i => i(inst));
-			ProcessInstance<M, T>(inst);
+			ProcessInstance<M, T>(inst, processOnCallerThread);
 		}
 
 		public void ProcessInstance<M, T>(bool processOnCallerThread = false)

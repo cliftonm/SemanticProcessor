@@ -108,5 +108,18 @@ namespace Clifton.Semantics.UnitTests
 			Assert.That(!constructorCalled, "Expected constructor NOT to be called.");
 			Assert.That(!disposeCalled, "Expected Dispose NOT to be called.");
 		}
+
+		/// <summary>
+		/// Test that a semantic instance initializer is called when the semantic type is constructed.
+		/// </summary>
+		[Test]
+		public void InitializerCalledForSemanticTypeConstruction()
+		{
+			bool initializerCalled = false;
+			SemanticProcessor sp = new SemanticProcessor();
+			sp.Register<TestMembrane, TestReceptor>();
+			sp.ProcessInstance<TestMembrane, TestSemanticType>((t) => initializerCalled = true, true);
+			Assert.That(initializerCalled, "Expected semantic type initializer to be called.");
+		}
 	}
 }
