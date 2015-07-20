@@ -13,6 +13,18 @@ using Clifton.Extensions;
 
 namespace Clifton.Semantics
 {
+	public class ReceptorCall
+	{
+		public IReceptor Receptor { get; set; }
+		public Action Proc { get; set; }
+		public bool AutoDispose { get; set; }
+
+		public ReceptorCall()
+		{
+			AutoDispose = true;
+		}
+	}
+
 	public class SemanticProcessor : ISemanticProcessor
 	{
 		public IMembrane Surface { get; protected set; }
@@ -21,7 +33,7 @@ namespace Clifton.Semantics
 		public IReadOnlyList<IMembrane> Membranes { get { return membranes.Values.ToList(); } }
 
 		protected const int MAX_WORKER_THREADS = 20;
-		protected List<ThreadSemaphore<Action>> threadPool;
+		protected List<ThreadSemaphore<ReceptorCall>> threadPool;
 		protected ConcurrentDictionary<Type, IMembrane> membranes;
 		protected ConcurrentDictionary<IMembrane, List<Type>> membraneReceptorTypes;
 		protected ConcurrentDictionary<IMembrane, List<IReceptor>> membraneReceptorInstances;
@@ -43,7 +55,7 @@ namespace Clifton.Semantics
 			statefulReceptors = new ConcurrentList<IReceptor>();
 			typeNotifiers = new ConcurrentDictionary<Type, List<Type>>();
 			instanceNotifiers = new ConcurrentDictionary<Type, List<IReceptor>>();
-			threadPool = new List<ThreadSemaphore<Action>>();
+			threadPool = new List<ThreadSemaphore<ReceptorCall>>();
 
 			// Register our two membranes.
 			membranes[Surface.GetType()] = Surface;
@@ -195,12 +207,12 @@ namespace Clifton.Semantics
 				// Call immediately.
 				if (processOnCallerThread)
 				{
-					Call(() => target.Process(this, membrane, obj));
+					Call(new ReceptorCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj) });
 				}
 				else
 				{
 					// Pick a thread that has the least work to do.
-					threadPool.MinBy(tp => tp.Count).Enqueue(() => target.Process(this, membrane, obj));
+					threadPool.MinBy(tp => tp.Count).Enqueue(new ReceptorCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj) });
 				}
 			}
 
@@ -210,7 +222,7 @@ namespace Clifton.Semantics
 			foreach (IReceptor receptor in sreceptors)
 			{
 				dynamic target = receptor;
-				threadPool.MinBy(tp => tp.Count).Enqueue(() => target.Process(this, membrane, obj));
+				threadPool.MinBy(tp => tp.Count).Enqueue(new ReceptorCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj), AutoDispose = false });
 			}
 		}
 
@@ -347,7 +359,7 @@ namespace Clifton.Semantics
 			{
 				Thread thread = new Thread(new ParameterizedThreadStart(ProcessPoolItem));
 				thread.IsBackground = true;
-				ThreadSemaphore<Action> ts = new ThreadSemaphore<Action>();
+				ThreadSemaphore<ReceptorCall> ts = new ThreadSemaphore<ReceptorCall>();
 				threadPool.Add(ts);
 				thread.Start(ts);
 			}
@@ -358,25 +370,25 @@ namespace Clifton.Semantics
 		/// </summary>
 		protected void ProcessPoolItem(object state)
 		{
-			ThreadSemaphore<Action> ts = (ThreadSemaphore<Action>)state;
+			ThreadSemaphore<ReceptorCall> ts = (ThreadSemaphore<ReceptorCall>)state;
 
 			while (true)
 			{
 				ts.WaitOne();
-				Action proc;
+				ReceptorCall rc;
 
-				if (ts.TryDequeue(out proc))
+				if (ts.TryDequeue(out rc))
 				{
-					Call(proc);
+					Call(rc);
 				}
 			}
 		}
 
-		protected void Call(Action proc)
+		protected void Call(ReceptorCall rc)
 		{
 			try
 			{
-				proc();
+				rc.Proc();
 			}
 			catch (Exception ex)
 			{
@@ -384,9 +396,9 @@ namespace Clifton.Semantics
 			}
 			finally
 			{
-				if (proc.Target is IDisposable)
+				if ( (rc.Receptor is IDisposable) && (rc.AutoDispose) )
 				{
-					((IDisposable)proc.Target).Dispose();
+					((IDisposable)rc.Receptor).Dispose();
 				}
 			}
 		}

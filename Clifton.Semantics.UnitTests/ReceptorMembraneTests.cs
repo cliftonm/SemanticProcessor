@@ -14,15 +14,27 @@ namespace Clifton.Semantics.UnitTests
 	public class ReceptorMembraneTests
 	{
 		public static bool callSuccess;
+		public static bool constructorCalled;
+		public static bool disposeCalled;
 
 		public class TestMembrane : IMembrane { }
 		public class TestMembrane2 : IMembrane { }
 		public class TestSemanticType : ISemanticType { }
-		public class TestReceptor : IReceptor
+		public class TestReceptor : IReceptor, IDisposable
 		{
+			public TestReceptor()
+			{
+				constructorCalled = true;
+			}
+
 			public void Process(ISemanticProcessor proc, IMembrane membrane, TestSemanticType t)
 			{
 				ReceptorMembraneTests.callSuccess = true;
+			}
+
+			public void Dispose()
+			{
+				disposeCalled = true;
 			}
 		}
 
@@ -64,6 +76,37 @@ namespace Clifton.Semantics.UnitTests
 			sp.RemoveTypeNotify<TestMembrane, TestReceptor, TestSemanticType>();
 			sp.ProcessInstance<TestMembrane, TestSemanticType>(true);
 			Assert.That(!callSuccess, "Expected TestReceptor.Process to NOT be called.");
+		}
+
+		/// <summary>
+		/// Verify that when processing a semantic type, the receptor, registered by type, is created and destroyed.
+		/// </summary>
+		[Test]
+		public void ReceptorTypeCreateDestroy()
+		{
+			constructorCalled = false;
+			disposeCalled = false;
+			SemanticProcessor sp = new SemanticProcessor();
+			sp.Register<TestMembrane, TestReceptor>();
+			sp.ProcessInstance<TestMembrane, TestSemanticType>(true);
+			Assert.That(constructorCalled, "Expected constructor to be called.");
+			Assert.That(disposeCalled, "Expected Dispose to be called.");
+		}
+
+		/// <summary>
+		/// Verify that a stateful receptor's constructor and Dispose method is not called when processing a semantic instance.
+		/// </summary>
+		[Test]
+		public void ReceptorInstanceCreateDestory()
+		{
+			SemanticProcessor sp = new SemanticProcessor();
+			IReceptor r = new TestReceptor();
+			constructorCalled = false;
+			disposeCalled = false;
+			sp.Register<TestMembrane>(r);
+			sp.ProcessInstance<TestMembrane, TestSemanticType>(true);
+			Assert.That(!constructorCalled, "Expected constructor NOT to be called.");
+			Assert.That(!disposeCalled, "Expected Dispose NOT to be called.");
 		}
 	}
 }
