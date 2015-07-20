@@ -20,15 +20,19 @@ namespace Clifton.Semantics
 
 		void Register(IMembrane membrane, IReceptor receptor);
 
-		void ProcessInstance<M, T>(Action<T> initializer = null)
+		void ProcessInstance<M, T>(Action<T> initializer)
+			where M : IMembrane
+			where T : ISemanticType, new();
+
+		void ProcessInstance<M, T>(bool processOnCallerThread = false)
+			where M : IMembrane
+			where T : ISemanticType, new();
+
+		void ProcessInstance<M, T>(T obj, bool processOnCallerThread = false)
 			where M : IMembrane
 			where T : ISemanticType;
-		
-		void ProcessInstance<M, T>(T obj)
-			where M : IMembrane
-			where T : ISemanticType;
-		
-		void ProcessInstance<T>(IMembrane membrane, T obj) 
+
+		void ProcessInstance<T>(IMembrane membrane, T obj, bool processOnCallerThread = false) 
 			where T : ISemanticType;
 	}
 

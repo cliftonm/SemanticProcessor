@@ -18,6 +18,8 @@ namespace Clifton.Semantics
 		public IMembrane Surface { get; protected set; }
 		public IMembrane Logger { get; protected set; }
 
+		public IReadOnlyList<IMembrane> Membranes { get { return membranes.Values.ToList(); } }
+
 		protected const int MAX_WORKER_THREADS = 20;
 		protected List<ThreadSemaphore<Action>> threadPool;
 		protected ConcurrentDictionary<Type, IMembrane> membranes;
@@ -128,32 +130,40 @@ namespace Clifton.Semantics
 		/// <summary>
 		/// Process a semantic type, allowing the caller to specify an initializer before processing the instance.
 		/// </summary>
-		public void ProcessInstance<M, T>(Action<T> initializer = null)
+		public void ProcessInstance<M, T>(Action<T> initializer)
 			where M : IMembrane
-			where T : ISemanticType
+			where T : ISemanticType, new()
 		{
-			T inst = Activator.CreateInstance<T>();
+			T inst = new T();
 			initializer.IfNotNull(i => i(inst));
 			ProcessInstance<M, T>(inst);
+		}
+
+		public void ProcessInstance<M, T>(bool processOnCallerThread = false)
+			where M : IMembrane
+			where T : ISemanticType, new()
+		{
+			T inst = new T();
+			ProcessInstance<M, T>(inst, processOnCallerThread);
 		}
 
 		/// <summary>
 		/// Process an instance in a given membrane type.
 		/// </summary>
-		public void ProcessInstance<M, T>(T obj)
+		public void ProcessInstance<M, T>(T obj, bool processOnCallerThread = false)
 			where M : IMembrane
 			where T : ISemanticType
 		{
 			Type mtype = typeof(M);
-			IMembrane membrane = membranes[mtype];
-			ProcessInstance<T>(membrane, obj);
+			IMembrane membrane = RegisterMembrane<M>();
+			ProcessInstance<T>(membrane, obj, processOnCallerThread);
 		}
 
 		/// <summary>
 		/// Process an instance of a specific type immediately.  The type T is determined implicitly from the parameter type, so 
 		/// a call can look like: ProcessInstance(t1)
 		/// </summary>
-		public void ProcessInstance<T>(IMembrane membrane, T obj)
+		public void ProcessInstance<T>(IMembrane membrane, T obj, bool processOnCallerThread = false)
 			where T : ISemanticType
 		{
 			// ProcessInstance((ISemanticType)obj);
@@ -182,8 +192,16 @@ namespace Clifton.Semantics
 				// therefore it can't locate the call point because it implements the concrete type.
 				dynamic target = Activator.CreateInstance(ttarget);
 
-				// Pick a thread that has the least work to do.
-				threadPool.MinBy(tp => tp.Count).Enqueue(() => target.Process(this, membrane, obj));
+				// Call immediately.
+				if (processOnCallerThread)
+				{
+					Call(() => target.Process(this, membrane, obj));
+				}
+				else
+				{
+					// Pick a thread that has the least work to do.
+					threadPool.MinBy(tp => tp.Count).Enqueue(() => target.Process(this, membrane, obj));
+				}
 			}
 
 			// Also check stateful receptors
@@ -349,21 +367,26 @@ namespace Clifton.Semantics
 
 				if (ts.TryDequeue(out proc))
 				{
-					try
-					{
-						proc();
-					}
-					catch (Exception ex)
-					{
-						Console.WriteLine(ex.Message);
-					}
-					finally
-					{
-						if (proc.Target is IDisposable)
-						{
-							((IDisposable)proc.Target).Dispose();
-						}
-					}
+					Call(proc);
+				}
+			}
+		}
+
+		protected void Call(Action proc)
+		{
+			try
+			{
+				proc();
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine(ex.Message);
+			}
+			finally
+			{
+				if (proc.Target is IDisposable)
+				{
+					((IDisposable)proc.Target).Dispose();
 				}
 			}
 		}
