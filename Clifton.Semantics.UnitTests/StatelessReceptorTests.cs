@@ -20,6 +20,7 @@ namespace Clifton.Semantics.UnitTests
 		public static bool callSuccess2;
 		public static bool constructorCalled;
 		public static bool disposeCalled;
+		public static bool receptorInitializerCalled;
 
 		public class TestMembrane : IMembrane { }
 		public class TestMembrane2 : IMembrane { }
@@ -30,6 +31,8 @@ namespace Clifton.Semantics.UnitTests
 		
 		public class TestReceptor : IReceptor, IDisposable
 		{
+			public bool AFlag { get; set; }
+
 			public TestReceptor()
 			{
 				constructorCalled = true;
@@ -176,6 +179,25 @@ namespace Clifton.Semantics.UnitTests
 			sp.ProcessInstance<TestMembrane, TestSemanticType>(true);
 			Assert.That(callSuccess, "Expected TestReceptor.Process to be called.");
 			Assert.That(callSuccess2, "Expected TestReceptor2.Process to be called.");
+		}
+
+		/// <summary>
+		/// Verify that the receptor initializer is called when a stateless receptor is instantiated.
+		/// </summary>
+		[Test]
+		public void ReceptorInitialization()
+		{
+			receptorInitializerCalled = false;
+			SemanticProcessor sp = new SemanticProcessor();
+			sp.Register<TestMembrane, TestReceptor>((ir) =>
+				{
+					// Unfortunately, a cast is required.
+					TestReceptor r = (TestReceptor)ir;
+					r.AFlag = true;
+					receptorInitializerCalled = true;
+				});
+			sp.ProcessInstance<TestMembrane, TestSemanticType>(true);
+			Assert.That(receptorInitializerCalled, "Expected TestReceptor initializer to be called to be called.");
 		}
 	}
 }

@@ -25,6 +25,17 @@ namespace Clifton.Semantics
 		}
 	}
 
+	public struct MembraneReceptor
+	{
+		public IMembrane Membrane { get; set; }
+		public Type ReceptorType { get; set; }
+	}
+
+	public class ReceptorInitializer
+	{
+		public Action<IReceptor> Initializer { get; set; }
+	}
+
 	public class SemanticProcessor : ISemanticProcessor
 	{
 		public IMembrane Surface { get; protected set; }
@@ -42,11 +53,14 @@ namespace Clifton.Semantics
 		protected ConcurrentDictionary<Type, List<Type>> typeNotifiers;
 		protected ConcurrentDictionary<Type, List<IReceptor>> instanceNotifiers;
 
+		protected Dictionary<MembraneReceptor, ReceptorInitializer> receptorInitializers;
+
 		public SemanticProcessor()
 		{
 			membranes = new ConcurrentDictionary<Type, IMembrane>();
 			membraneReceptorTypes = new ConcurrentDictionary<IMembrane, List<Type>>();
 			membraneReceptorInstances = new ConcurrentDictionary<IMembrane, List<IReceptor>>();
+			receptorInitializers = new Dictionary<MembraneReceptor, ReceptorInitializer>();
 
 			// Our two hard-coded membranes:
 			Surface = RegisterMembrane<SurfaceMembrane>();
@@ -84,6 +98,17 @@ namespace Clifton.Semantics
 			Register<T>();
 			IMembrane membrane = RegisterMembrane(typeof(M));
 			membraneReceptorTypes[membrane].Add(typeof(T));
+		}
+
+		public void Register<M, T>(Action<IReceptor> receptorInitializer)
+			where M : IMembrane
+			where T : IReceptor
+		{
+			Register<T>();
+			Type receptorType = typeof(T);
+			IMembrane membrane = RegisterMembrane(typeof(M));
+			membraneReceptorTypes[membrane].Add(receptorType);
+			receptorInitializers[new MembraneReceptor() { Membrane = membrane, ReceptorType = receptorType }] = new ReceptorInitializer() { Initializer = receptorInitializer };
 		}
 
 		/// <summary>
@@ -228,6 +253,8 @@ namespace Clifton.Semantics
 			// the Process call on a separate thread.  Constructing the target type ensures that the
 			// target is stateless -- state must be managed external of any type!
 
+			// Stateless receptors:
+
 			List<Type> receptors = GetReceptors(membrane, tsource);
 
 			if (!(membrane is LoggerMembrane))
@@ -241,6 +268,13 @@ namespace Clifton.Semantics
 				// If we instead only have the interface ISemanticType, dynamic does not downcast to the concrete type --
 				// therefore it can't locate the call point because it implements the concrete type.
 				dynamic target = Activator.CreateInstance(ttarget);
+
+				ReceptorInitializer receptorInitializer;
+
+				if (receptorInitializers.TryGetValue(new MembraneReceptor() { Membrane = membrane, ReceptorType = ttarget }, out receptorInitializer))
+				{
+					receptorInitializer.Initializer(target);
+				}
 
 				// Call immediately?
 				if (processOnCallerThread)
