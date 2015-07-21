@@ -10,6 +10,9 @@ using Clifton.Semantics;
 
 namespace Clifton.Semantics.UnitTests
 {
+	/// <summary>
+	/// Test stateless receptors.  These are receptors that the SemanticProcessor creates and destroys as needed.
+	/// </summary>
 	[TestFixture]
 	public class StatelessReceptorTests
 	{

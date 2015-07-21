@@ -10,6 +10,9 @@ using Clifton.Semantics;
 
 namespace Clifton.Semantics.UnitTests
 {
+	/// <summary>
+	/// Test stateful receptors.  Stateful receptors are instances that are instantiated externally from the SemanticProcessor.
+	/// </summary>
 	[TestFixture]
 	public class StatefulReceptorTests
 	{
