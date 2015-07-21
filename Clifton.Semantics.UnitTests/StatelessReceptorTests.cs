@@ -191,7 +191,8 @@ namespace Clifton.Semantics.UnitTests
 			SemanticProcessor sp = new SemanticProcessor();
 			sp.Register<TestMembrane, TestReceptor>((ir) =>
 				{
-					// Unfortunately, a cast is required.
+					// Unfortunately, a cast is required, because ir is type declared as IReceptor
+					// and I don't think it's possible to fix that because of the late callback.
 					TestReceptor r = (TestReceptor)ir;
 					r.AFlag = true;
 					receptorInitializerCalled = true;

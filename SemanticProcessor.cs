@@ -13,15 +13,38 @@ using Clifton.Extensions;
 
 namespace Clifton.Semantics
 {
-	public class ReceptorCall
+	public abstract class ProcessCall
 	{
 		public IReceptor Receptor { get; set; }
-		public Action Proc { get; set; }
 		public bool AutoDispose { get; set; }
 
-		public ReceptorCall()
+		public abstract void MakeCall();
+	}
+
+	public class MethodInvokeCall : ProcessCall
+	{
+		public MethodInfo Method { get; set; }
+		public object Target { get; set; }
+		public object[] Parameters { get; set; }
+
+		public override void MakeCall()
+		{
+			Method.Invoke(Target, Parameters);
+		}
+	}
+
+	public class DynamicCall : ProcessCall
+	{
+		public Action Proc { get; set; }
+
+		public DynamicCall()
 		{
 			AutoDispose = true;
+		}
+
+		public override void MakeCall()
+		{
+			Proc();
 		}
 	}
 
@@ -44,7 +67,7 @@ namespace Clifton.Semantics
 		public IReadOnlyList<IMembrane> Membranes { get { return membranes.Values.ToList(); } }
 
 		protected const int MAX_WORKER_THREADS = 20;
-		protected List<ThreadSemaphore<ReceptorCall>> threadPool;
+		protected List<ThreadSemaphore<ProcessCall>> threadPool;
 		protected ConcurrentDictionary<Type, IMembrane> membranes;
 		protected ConcurrentDictionary<IMembrane, List<Type>> membraneReceptorTypes;
 		protected ConcurrentDictionary<IMembrane, List<IReceptor>> membraneReceptorInstances;
@@ -69,7 +92,7 @@ namespace Clifton.Semantics
 			statefulReceptors = new ConcurrentList<IReceptor>();
 			typeNotifiers = new ConcurrentDictionary<Type, List<Type>>();
 			instanceNotifiers = new ConcurrentDictionary<Type, List<IReceptor>>();
-			threadPool = new List<ThreadSemaphore<ReceptorCall>>();
+			threadPool = new List<ThreadSemaphore<ProcessCall>>();
 
 			// Register our two membranes.
 			membranes[Surface.GetType()] = Surface;
@@ -279,12 +302,12 @@ namespace Clifton.Semantics
 				// Call immediately?
 				if (processOnCallerThread)
 				{
-					Call(new ReceptorCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj) });
+					Call(new DynamicCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj) });
 				}
 				else
 				{
 					// Pick a thread that has the least work to do.
-					threadPool.MinBy(tp => tp.Count).Enqueue(new ReceptorCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj) });
+					threadPool.MinBy(tp => tp.Count).Enqueue(new DynamicCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj) });
 				}
 			}
 
@@ -297,15 +320,80 @@ namespace Clifton.Semantics
 				// Call immediately?
 				if (processOnCallerThread)
 				{
-					Call(new ReceptorCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj), AutoDispose = false });
+					Call(new DynamicCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj), AutoDispose = false });
 				}
 				else
 				{
-					threadPool.MinBy(tp => tp.Count).Enqueue(new ReceptorCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj), AutoDispose = false });
+					threadPool.MinBy(tp => tp.Count).Enqueue(new DynamicCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj), AutoDispose = false });
 				}
 			}
 
-			// ProcessInnerTypes(membrane, obj, processOnCallerThread);
+			ProcessInnerTypes(membrane, obj, processOnCallerThread);
+		}
+
+		/// <summary>
+		/// Process an instance where we only know that it implements ISemanticType as opposed the the concrete type in the generic method above.
+		/// We cannot use "dynamic" in this case, therefore we have to use Method.Invoke.
+		/// </summary>
+		protected void ProcessInstance(IMembrane membrane, ISemanticType obj, bool processOnCallerThread = false)
+		{
+			// We get the source object type.
+			Type tsource = obj.GetType();
+
+			// Stateless receptors:
+
+			List<Type> receptors = GetReceptors(membrane, tsource);
+
+			if (!(membrane is LoggerMembrane))
+			{
+				ProcessInstance(Logger, obj);
+			}
+
+			foreach (Type ttarget in receptors)
+			{
+				// We can use dynamic here because we have a <T> generic to resolve the call parameter.
+				// If we instead only have the interface ISemanticType, dynamic does not downcast to the concrete type --
+				// therefore it can't locate the call point because it implements the concrete type.
+				IReceptor target = (IReceptor)Activator.CreateInstance(ttarget);
+
+				ReceptorInitializer receptorInitializer;
+
+				if (receptorInitializers.TryGetValue(new MembraneReceptor() { Membrane = membrane, ReceptorType = ttarget }, out receptorInitializer))
+				{
+					receptorInitializer.Initializer(target);
+				}
+
+				// Call immediately?
+				if (processOnCallerThread)
+				{
+					MethodInfo method = GetProcessMethod(target, tsource);
+					method.Invoke(target, new object[] { this, membrane, obj });
+				}
+				else
+				{
+					// Pick a thread that has the least work to do.
+					threadPool.MinBy(tp => tp.Count).Enqueue(new MethodInvokeCall() { Receptor = target, Parameters = new object[] { this, membrane, obj } });
+				}
+			}
+
+			// Also check stateful receptors
+			List<IReceptor> sreceptors = GetStatefulReceptors(membrane, tsource);
+
+			foreach (IReceptor receptor in sreceptors)
+			{
+				// Call immediately?
+				if (processOnCallerThread)
+				{
+					MethodInfo method = GetProcessMethod(receptor, tsource);
+					method.Invoke(receptor, new object[] { this, membrane, obj });
+				}
+				else
+				{
+					threadPool.MinBy(tp => tp.Count).Enqueue(new MethodInvokeCall() { Receptor = receptor, Parameters = new object[] { this, membrane, obj }, AutoDispose = false });
+				}
+			}
+
+			ProcessInnerTypes(membrane, obj, processOnCallerThread);
 		}
 
 		/// <summary>
@@ -459,7 +547,7 @@ namespace Clifton.Semantics
 			{
 				Thread thread = new Thread(new ParameterizedThreadStart(ProcessPoolItem));
 				thread.IsBackground = true;
-				ThreadSemaphore<ReceptorCall> ts = new ThreadSemaphore<ReceptorCall>();
+				ThreadSemaphore<ProcessCall> ts = new ThreadSemaphore<ProcessCall>();
 				threadPool.Add(ts);
 				thread.Start(ts);
 			}
@@ -470,12 +558,12 @@ namespace Clifton.Semantics
 		/// </summary>
 		protected void ProcessPoolItem(object state)
 		{
-			ThreadSemaphore<ReceptorCall> ts = (ThreadSemaphore<ReceptorCall>)state;
+			ThreadSemaphore<ProcessCall> ts = (ThreadSemaphore<ProcessCall>)state;
 
 			while (true)
 			{
 				ts.WaitOne();
-				ReceptorCall rc;
+				ProcessCall rc;
 
 				if (ts.TryDequeue(out rc))
 				{
@@ -484,11 +572,11 @@ namespace Clifton.Semantics
 			}
 		}
 
-		protected void Call(ReceptorCall rc)
+		protected void Call(ProcessCall rc)
 		{
 			try
 			{
-				rc.Proc();
+				rc.MakeCall();
 			}
 			catch (Exception ex)
 			{
@@ -501,6 +589,49 @@ namespace Clifton.Semantics
 					((IDisposable)rc.Receptor).Dispose();
 				}
 			}
+		}
+
+		/// <summary>
+		/// Get the Process method that implements, in its parameters, the source type.
+		/// Only one process method is allowed for a specific type -- the compiler would tell us if there's duplicates.
+		/// However, we can have different process methods for interfaces and base classes of a given type, as these
+		/// each are maintained in unique receptor target lists, since they are, technically, different types!
+		/// </summary>
+		protected MethodInfo GetProcessMethod(IReceptor target, Type tsource)
+		{
+			// TODO: Cache the (target type, source type) MethodInfo
+			MethodInfo[] methods = target.GetType().GetMethods();
+
+			// Also check interfaces implemented by the source.
+			Type[] interfaces = tsource.GetInterfaces();
+
+			foreach (MethodInfo method in methods)
+			{
+				if (method.Name == "Process")
+				{
+					ParameterInfo[] parameters = method.GetParameters();
+
+					foreach (ParameterInfo parameter in parameters)
+					{
+						// Do we have a match for the concrete source type?
+						if (parameter.ParameterType == tsource)
+						{
+							return method;
+						}
+
+						// Do we have a match for any interfaces the concrete source type implements?
+						foreach (Type iface in interfaces)
+						{
+							if (parameter.ParameterType == iface)
+							{
+								return method;
+							}
+						}
+					}
+				}
+			}
+
+			return null;
 		}
 	}
 }

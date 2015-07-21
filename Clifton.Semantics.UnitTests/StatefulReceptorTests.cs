@@ -127,7 +127,7 @@ namespace Clifton.Semantics.UnitTests
 		/// Verify that a stateful receptor's constructor and Dispose method is not called when processing a semantic instance.
 		/// </summary>
 		[Test]
-		public void ReceptorInstanceCreateDestory()
+		public void ReceptorInstanceCreateDestroy()
 		{
 			SemanticProcessor sp = new SemanticProcessor();
 			sp.Register<TestMembrane>(new TestReceptor());
@@ -182,3 +182,4 @@ namespace Clifton.Semantics.UnitTests
 		}
 	}
 }
+												 
