@@ -43,7 +43,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ReceptorMembraneTests.cs" />
+    <Compile Include="StatefulReceptorTests.cs" />
+    <Compile Include="StatelessReceptorTests.cs" />
     <Compile Include="RegistrationTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

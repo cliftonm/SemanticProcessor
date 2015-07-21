@@ -133,9 +133,46 @@ namespace Clifton.Semantics
 			IMembrane membrane = membranes[typeof(TMembrane)];
 			List<Type> targets = GetReceptors(membrane, tsource);
 
+			// Remove from type list.
 			foreach (Type ttarget in targets)
 			{
 				typeNotifiers[tsource].Remove(ttarget);
+			}
+
+			// Remove all receptors in the specified membrane that are processing this semantic type.
+			List<IReceptor> instanceReceptors = GetStatefulReceptors(membrane, tsource);
+
+			foreach (IReceptor receptor in instanceReceptors)
+			{
+				instanceNotifiers[tsource].Remove(receptor);
+			}
+		}
+
+		public void RemoveTypeNotify<TMembrane, TSource>(IReceptor receptor)
+			where TMembrane : IMembrane
+			where TSource : ISemanticType
+		{
+			Type tsource = typeof(TSource);
+			Type treceptor = receptor.GetType();
+			IMembrane membrane = membranes[typeof(TMembrane)];
+			List<Type> targets = GetReceptors(membrane, tsource);
+
+			// Remove from type list for this membrane this receptor, by its type.
+			foreach (Type ttarget in targets)
+			{
+				typeNotifiers[tsource].Remove(ttarget);
+			}
+
+			// Remove from instance list.
+			List<IReceptor> instanceReceptors = GetStatefulReceptors(membrane, tsource);
+
+			foreach (IReceptor ireceptor in instanceReceptors)
+			{
+				// Remove only this instance receptor from its membrane.
+				if (ireceptor == receptor)
+				{
+					instanceNotifiers[tsource].Remove(receptor);
+				}
 			}
 		}
 		
@@ -204,7 +241,7 @@ namespace Clifton.Semantics
 				// therefore it can't locate the call point because it implements the concrete type.
 				dynamic target = Activator.CreateInstance(ttarget);
 
-				// Call immediately.
+				// Call immediately?
 				if (processOnCallerThread)
 				{
 					Call(new ReceptorCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj) });
@@ -222,7 +259,15 @@ namespace Clifton.Semantics
 			foreach (IReceptor receptor in sreceptors)
 			{
 				dynamic target = receptor;
-				threadPool.MinBy(tp => tp.Count).Enqueue(new ReceptorCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj), AutoDispose = false });
+				// Call immediately?
+				if (processOnCallerThread)
+				{
+					Call(new ReceptorCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj), AutoDispose = false });
+				}
+				else
+				{
+					threadPool.MinBy(tp => tp.Count).Enqueue(new ReceptorCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj), AutoDispose = false });
+				}
 			}
 		}
 

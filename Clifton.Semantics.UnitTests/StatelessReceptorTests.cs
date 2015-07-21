@@ -11,15 +11,20 @@ using Clifton.Semantics;
 namespace Clifton.Semantics.UnitTests
 {
 	[TestFixture]
-	public class ReceptorMembraneTests
+	public class StatelessReceptorTests
 	{
 		public static bool callSuccess;
+		public static bool callSuccess2;
 		public static bool constructorCalled;
 		public static bool disposeCalled;
 
 		public class TestMembrane : IMembrane { }
 		public class TestMembrane2 : IMembrane { }
 		public class TestSemanticType : ISemanticType { }
+
+		public interface ITestSemanticType { };
+		public class InterfaceTestSemanticType : ISemanticType, ITestSemanticType { }
+		
 		public class TestReceptor : IReceptor, IDisposable
 		{
 			public TestReceptor()
@@ -29,12 +34,33 @@ namespace Clifton.Semantics.UnitTests
 
 			public void Process(ISemanticProcessor proc, IMembrane membrane, TestSemanticType t)
 			{
-				ReceptorMembraneTests.callSuccess = true;
+				callSuccess = true;
 			}
 
 			public void Dispose()
 			{
 				disposeCalled = true;
+			}
+		}
+
+		public class TestReceptor2 : IReceptor
+		{
+			public void Process(ISemanticProcessor proc, IMembrane membrane, TestSemanticType t)
+			{
+				callSuccess2 = true;
+			}
+		}
+
+		public class DerivedTestReceptor : TestReceptor
+		{
+		}
+
+		// IReceptor type is optional, but good practice to make sure you implement Process on the semantic type.
+		public class InterfaceTestReceptor : IReceptor<ITestSemanticType>	
+		{
+			public void Process(ISemanticProcessor proc, IMembrane membrane, ITestSemanticType t)
+			{
+				callSuccess = true;
 			}
 		}
 
@@ -94,22 +120,6 @@ namespace Clifton.Semantics.UnitTests
 		}
 
 		/// <summary>
-		/// Verify that a stateful receptor's constructor and Dispose method is not called when processing a semantic instance.
-		/// </summary>
-		[Test]
-		public void ReceptorInstanceCreateDestory()
-		{
-			SemanticProcessor sp = new SemanticProcessor();
-			IReceptor r = new TestReceptor();
-			constructorCalled = false;
-			disposeCalled = false;
-			sp.Register<TestMembrane>(r);
-			sp.ProcessInstance<TestMembrane, TestSemanticType>(true);
-			Assert.That(!constructorCalled, "Expected constructor NOT to be called.");
-			Assert.That(!disposeCalled, "Expected Dispose NOT to be called.");
-		}
-
-		/// <summary>
 		/// Test that a semantic instance initializer is called when the semantic type is constructed.
 		/// </summary>
 		[Test]
@@ -120,6 +130,49 @@ namespace Clifton.Semantics.UnitTests
 			sp.Register<TestMembrane, TestReceptor>();
 			sp.ProcessInstance<TestMembrane, TestSemanticType>((t) => initializerCalled = true, true);
 			Assert.That(initializerCalled, "Expected semantic type initializer to be called.");
+		}
+
+		/// <summary>
+		/// Test that the base class' Process method gets called for a type that it handles,
+		/// even though we instantiated a sub-class.
+		/// </summary>
+		[Test]
+		public void BaseClassProcessCalled()
+		{
+			callSuccess = false;
+			SemanticProcessor sp = new SemanticProcessor();
+			sp.Register<TestMembrane, DerivedTestReceptor>();
+			sp.ProcessInstance<TestMembrane, TestSemanticType>(true);
+			Assert.That(callSuccess, "Expected TestReceptor.Process to be called.");
+		}
+
+		/// <summary>
+		/// Test that a receptor that implements Process on an interface gets called.
+		/// </summary>
+		[Test]
+		public void ReceptorOfInterfaceTypeCalled()
+		{
+			callSuccess = false;
+			SemanticProcessor sp = new SemanticProcessor();
+			sp.Register<TestMembrane, InterfaceTestReceptor>();
+			sp.ProcessInstance<TestMembrane, InterfaceTestSemanticType>(true);
+			Assert.That(callSuccess, "Expected TestReceptor.Process to be called.");
+		}
+
+		/// <summary>
+		/// Verify that more than one receptor (but of different types in the same membrane) receives the Process call for the same semantic type.
+		/// </summary>
+		[Test]
+		public void MultipleProcessCalls()
+		{
+			callSuccess = false;
+			callSuccess2 = false;
+			SemanticProcessor sp = new SemanticProcessor();
+			sp.Register<TestMembrane, TestReceptor>();
+			sp.Register<TestMembrane, TestReceptor2>();
+			sp.ProcessInstance<TestMembrane, TestSemanticType>(true);
+			Assert.That(callSuccess, "Expected TestReceptor.Process to be called.");
+			Assert.That(callSuccess2, "Expected TestReceptor2.Process to be called.");
 		}
 	}
 }
