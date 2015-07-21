@@ -13,6 +13,16 @@ using Clifton.Extensions;
 
 namespace Clifton.Semantics
 {
+	public class ST_Exception : ISemanticType
+	{
+		public Exception Exception { get; protected set; }
+
+		public ST_Exception(Exception ex)
+		{
+			this.Exception = ex;
+		}
+	}
+
 	public abstract class ProcessCall
 	{
 		public IReceptor Receptor { get; set; }
@@ -580,7 +590,7 @@ namespace Clifton.Semantics
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine(ex.Message);
+				ProcessInstance(Logger, new ST_Exception(ex), true);
 			}
 			finally
 			{
