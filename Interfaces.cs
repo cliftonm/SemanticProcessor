@@ -32,7 +32,7 @@ namespace Clifton.Semantics
 			where M : IMembrane
 			where T : ISemanticType;
 
-		void ProcessInstance<T>(IMembrane membrane, T obj, bool processOnCallerThread = false) 
+		void ProcessInstance<T>(IMembrane membrane, T obj, bool processOnCallerThread = false)
 			where T : ISemanticType;
 	}
 

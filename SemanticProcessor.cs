@@ -205,12 +205,13 @@ namespace Clifton.Semantics
 		{
 			Type mtype = typeof(M);
 			IMembrane membrane = RegisterMembrane<M>();
-			ProcessInstance<T>(membrane, obj, processOnCallerThread);
+			ProcessInstance(membrane, obj, processOnCallerThread);
 		}
 
 		/// <summary>
 		/// Process an instance of a specific type immediately.  The type T is determined implicitly from the parameter type, so 
-		/// a call can look like: ProcessInstance(t1)
+		/// a call can look like: ProcessInstance(t1).  This also allows the code here to use the "dynamic" keyword rather than 
+		/// having to obtain the method to call by reflection.
 		/// </summary>
 		public void ProcessInstance<T>(IMembrane membrane, T obj, bool processOnCallerThread = false)
 			where T : ISemanticType
@@ -233,7 +234,7 @@ namespace Clifton.Semantics
 			{
 				ProcessInstance(Logger, obj);
 			}
-			
+
 			foreach (Type ttarget in receptors)
 			{
 				// We can use dynamic here because we have a <T> generic to resolve the call parameter.
@@ -269,6 +270,26 @@ namespace Clifton.Semantics
 					threadPool.MinBy(tp => tp.Count).Enqueue(new ReceptorCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj), AutoDispose = false });
 				}
 			}
+
+			// ProcessInnerTypes(membrane, obj, processOnCallerThread);
+		}
+
+		/// <summary>
+		/// Any public properties that are of ISemanticType type and not null are also emitted into the membrane.
+		/// </summary>
+		protected void ProcessInnerTypes(IMembrane membrane, ISemanticType obj, bool processOnCallerThread)
+		{
+			var properties = obj.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public).Where(pi => pi.PropertyType.GetInterfaces().Contains(typeof(ISemanticType)));
+
+			properties.ForEach(pi =>
+				{
+					ISemanticType prop = (ISemanticType)pi.GetValue(obj);
+
+					if (prop != null)
+					{
+						ProcessInstance(membrane, prop, processOnCallerThread);
+					}
+				});
 		}
 
 		protected void Register<T>()

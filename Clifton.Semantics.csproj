@@ -56,10 +56,6 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\SemanticPool\MoreLinq\MoreLinq.csproj">
-      <Project>{30a6beab-bcf6-4d8d-bd2a-46f33c191ebc}</Project>
-      <Name>MoreLinq</Name>
-    </ProjectReference>
     <ProjectReference Include="Clifton.Extensions\Clifton.Extensions.csproj">
       <Project>{650cc65c-3d10-44fc-aeda-2f34c83a525d}</Project>
       <Name>Clifton.Extensions</Name>
