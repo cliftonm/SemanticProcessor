@@ -27,6 +27,7 @@ namespace Clifton.Semantics
 	{
 		public IReceptor Receptor { get; set; }
 		public bool AutoDispose { get; set; }
+		public ISemanticType SemanticInstance { get; set; }
 
 		public abstract void MakeCall();
 	}
@@ -289,11 +290,7 @@ namespace Clifton.Semantics
 			// Stateless receptors:
 
 			List<Type> receptors = GetReceptors(membrane, tsource);
-
-			if (!(membrane is LoggerMembrane))
-			{
-				ProcessInstance(Logger, obj);
-			}
+			Log(membrane, obj);
 
 			foreach (Type ttarget in receptors)
 			{
@@ -312,12 +309,12 @@ namespace Clifton.Semantics
 				// Call immediately?
 				if (processOnCallerThread)
 				{
-					Call(new DynamicCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj) });
+					Call(new DynamicCall() { SemanticInstance = obj, Receptor = target, Proc = () => target.Process(this, membrane, obj) });
 				}
 				else
 				{
 					// Pick a thread that has the least work to do.
-					threadPool.MinBy(tp => tp.Count).Enqueue(new DynamicCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj) });
+					threadPool.MinBy(tp => tp.Count).Enqueue(new DynamicCall() { SemanticInstance = obj, Receptor = target, Proc = () => target.Process(this, membrane, obj) });
 				}
 			}
 
@@ -330,11 +327,11 @@ namespace Clifton.Semantics
 				// Call immediately?
 				if (processOnCallerThread)
 				{
-					Call(new DynamicCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj), AutoDispose = false });
+					Call(new DynamicCall() { SemanticInstance = obj, Receptor = target, Proc = () => target.Process(this, membrane, obj), AutoDispose = false });
 				}
 				else
 				{
-					threadPool.MinBy(tp => tp.Count).Enqueue(new DynamicCall() { Receptor = target, Proc = () => target.Process(this, membrane, obj), AutoDispose = false });
+					threadPool.MinBy(tp => tp.Count).Enqueue(new DynamicCall() { SemanticInstance = obj, Receptor = target, Proc = () => target.Process(this, membrane, obj), AutoDispose = false });
 				}
 			}
 
@@ -353,11 +350,7 @@ namespace Clifton.Semantics
 			// Stateless receptors:
 
 			List<Type> receptors = GetReceptors(membrane, tsource);
-
-			if (!(membrane is LoggerMembrane))
-			{
-				ProcessInstance(Logger, obj);
-			}
+			Log(membrane, obj);
 
 			foreach (Type ttarget in receptors)
 			{
@@ -382,7 +375,7 @@ namespace Clifton.Semantics
 				else
 				{
 					// Pick a thread that has the least work to do.
-					threadPool.MinBy(tp => tp.Count).Enqueue(new MethodInvokeCall() { Receptor = target, Parameters = new object[] { this, membrane, obj } });
+					threadPool.MinBy(tp => tp.Count).Enqueue(new MethodInvokeCall() { SemanticInstance = obj, Receptor = target, Parameters = new object[] { this, membrane, obj } });
 				}
 			}
 
@@ -399,7 +392,7 @@ namespace Clifton.Semantics
 				}
 				else
 				{
-					threadPool.MinBy(tp => tp.Count).Enqueue(new MethodInvokeCall() { Receptor = receptor, Parameters = new object[] { this, membrane, obj }, AutoDispose = false });
+					threadPool.MinBy(tp => tp.Count).Enqueue(new MethodInvokeCall() { SemanticInstance = obj, Receptor = receptor, Parameters = new object[] { this, membrane, obj }, AutoDispose = false });
 				}
 			}
 
@@ -590,7 +583,11 @@ namespace Clifton.Semantics
 			}
 			catch (Exception ex)
 			{
-				ProcessInstance(Logger, new ST_Exception(ex), true);
+				// Prevent recursion if the exception process itself throws an exception.
+				if (!(rc.SemanticInstance is ST_Exception))
+				{
+					ProcessInstance(Logger, new ST_Exception(ex), true);
+				}
 			}
 			finally
 			{
@@ -642,6 +639,16 @@ namespace Clifton.Semantics
 			}
 
 			return null;
+		}
+
+		protected void Log<T>(IMembrane membrane, T obj)
+			where T : ISemanticType
+		{
+			// Prevent recursion, don't log exceptions, as these get handled by the exception type.
+			if ( (!(membrane is LoggerMembrane)) && (!(obj is ST_Exception)) )
+			{
+				ProcessInstance(Logger, obj);
+			}
 		}
 	}
 }
