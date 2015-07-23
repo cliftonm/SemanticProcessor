@@ -20,7 +20,7 @@ namespace Clifton.Semantics.UnitTests
 		public static bool simpleTypeProcessed;
 		public static bool complexTypeProcessed;
 
-		public class TestMembrane : IMembrane { }
+		public class TestMembrane : Membrane { }
 		public class SimpleType : ISemanticType { }
 		public class ComplexType : ISemanticType
 		{

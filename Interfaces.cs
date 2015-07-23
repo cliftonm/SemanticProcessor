@@ -38,14 +38,17 @@ namespace Clifton.Semantics
 
 	public interface IMembrane
 	{
+		// Do not any members here.  This is an interface helper.
 	}
 
 	public interface ISemanticType
 	{
+		// Do not any members here.  This is an interface helper.
 	}
 
 	public interface IReceptor
 	{
+		// Do not any members here.  This is an interface helper.
 	}
 
 	public interface IReceptor<T> : IReceptor

@@ -45,6 +45,7 @@
   <ItemGroup>
     <Compile Include="ComplexTypeTests.cs" />
     <Compile Include="LoggingTests.cs" />
+    <Compile Include="MembraneTests.cs" />
     <Compile Include="StatefulReceptorTests.cs" />
     <Compile Include="StatelessReceptorTests.cs" />
     <Compile Include="RegistrationTests.cs" />

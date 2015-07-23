@@ -19,7 +19,7 @@ namespace Clifton.Semantics.UnitTests
 		public static bool stLogged;
 		public static bool exLogged;
 
-		public class TestMembrane : IMembrane { }
+		public class TestMembrane : Membrane { }
 		public class TestSemanticType : ISemanticType { }
 		public class TypeThrowsException : ISemanticType { }
 

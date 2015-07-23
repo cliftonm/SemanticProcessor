@@ -22,8 +22,8 @@ namespace Clifton.Semantics.UnitTests
 		public static bool disposeCalled;
 		public static bool receptorInitializerCalled;
 
-		public class TestMembrane : IMembrane { }
-		public class TestMembrane2 : IMembrane { }
+		public class TestMembrane : Membrane { }
+		public class TestMembrane2 : Membrane { }
 		public class TestSemanticType : ISemanticType { }
 
 		public interface ITestSemanticType { };

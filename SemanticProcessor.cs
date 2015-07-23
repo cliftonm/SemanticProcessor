@@ -121,6 +121,37 @@ namespace Clifton.Semantics
 		}
 
 		/// <summary>
+		/// Add the child (second generic type) to the outer (first generic type) membrane.
+		/// </summary>
+		/// <typeparam name="Outer"></typeparam>
+		/// <typeparam name="Inner"></typeparam>
+		/// <returns></returns>
+		public void AddChild<Outer, Inner>()
+			where Outer : IMembrane
+			where Inner : IMembrane
+		{
+			Membrane mOuter = (Membrane)RegisterMembrane<Outer>();
+			Membrane mInner = (Membrane)RegisterMembrane<Inner>();
+			mOuter.AddChild(mInner);
+		}
+
+		public void OutboundPermeableTo<M, T>()
+			where M : IMembrane
+			where T : ISemanticType
+		{
+			Membrane m = (Membrane)RegisterMembrane<M>();
+			m.OutboundPermeableTo<T>();
+		}
+
+		public void InboundPermeableTo<M, T>()
+			where M : IMembrane
+			where T : ISemanticType
+		{
+			Membrane m = (Membrane)RegisterMembrane<M>();
+			m.InboundPermeableTo<T>();
+		}
+
+		/// <summary>
 		/// Register a receptor, auto-discovering the semantic types that it processes.
 		/// Receptors live in membranes, to we always specify the membrane type.  The membrane
 		/// instance is auto-created for us if necessary.
@@ -275,6 +306,12 @@ namespace Clifton.Semantics
 		public void ProcessInstance<T>(IMembrane membrane, T obj, bool processOnCallerThread = false)
 			where T : ISemanticType
 		{
+			ProcessInstance(membrane, null, obj, processOnCallerThread);
+		}
+
+		protected void ProcessInstance<T>(IMembrane membrane, IMembrane caller, T obj, bool processOnCallerThread)
+			where T : ISemanticType
+		{
 			// ProcessInstance((ISemanticType)obj);
 
 			// We get the source object type.
@@ -335,14 +372,36 @@ namespace Clifton.Semantics
 				}
 			}
 
-			ProcessInnerTypes(membrane, obj, processOnCallerThread);
+			ProcessInnerTypes(membrane, caller, obj, processOnCallerThread);
+			PermeateOut(membrane, caller, obj, processOnCallerThread);
+		}
+
+		/// <summary>
+		/// Traverse permeable membranes without calling back into the caller.  While membranes should not be bidirectionally
+		/// permeable, this does stop infinite recursion if the user accidentally (or intentionally) configured the membranes thusly.
+		/// </summary>
+		protected void PermeateOut<T>(IMembrane membrane, IMembrane caller, T obj, bool processOnCallerThread)
+			where T : ISemanticType
+		{
+			List<IMembrane> pmembranes = ((Membrane)membrane).PermeateTo(obj);
+			pmembranes.Where(m=>m != caller).ForEach((m) => ProcessInstance(m, membrane, obj, processOnCallerThread));
+		}
+
+		/// <summary>
+		/// Traverse permeable membranes without calling back into the caller.  While membranes should not be bidirectionally
+		/// permeable, this does stop infinite recursion if the user accidentally (or intentionally) configured the membranes thusly.
+		/// </summary>
+		protected void PermeateOut(IMembrane membrane, IMembrane caller, ISemanticType obj, bool processOnCallerThread)
+		{
+			List<IMembrane> pmembranes = ((Membrane)membrane).PermeateTo(obj);
+			pmembranes.Where(m => m != caller).ForEach((m) => ProcessInstance(m, membrane, obj, processOnCallerThread));
 		}
 
 		/// <summary>
 		/// Process an instance where we only know that it implements ISemanticType as opposed the the concrete type in the generic method above.
 		/// We cannot use "dynamic" in this case, therefore we have to use Method.Invoke.
 		/// </summary>
-		protected void ProcessInstance(IMembrane membrane, ISemanticType obj, bool processOnCallerThread = false)
+		protected void ProcessInstance(IMembrane membrane, IMembrane caller, ISemanticType obj, bool processOnCallerThread = false)
 		{
 			// We get the source object type.
 			Type tsource = obj.GetType();
@@ -396,13 +455,14 @@ namespace Clifton.Semantics
 				}
 			}
 
-			ProcessInnerTypes(membrane, obj, processOnCallerThread);
+			ProcessInnerTypes(membrane, caller, obj, processOnCallerThread);
+			PermeateOut(membrane, caller, obj, processOnCallerThread);
 		}
 
 		/// <summary>
 		/// Any public properties that are of ISemanticType type and not null are also emitted into the membrane.
 		/// </summary>
-		protected void ProcessInnerTypes(IMembrane membrane, ISemanticType obj, bool processOnCallerThread)
+		protected void ProcessInnerTypes(IMembrane membrane, IMembrane caller, ISemanticType obj, bool processOnCallerThread)
 		{
 			var properties = obj.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public).Where(pi => pi.PropertyType.GetInterfaces().Contains(typeof(ISemanticType)));
 
@@ -412,7 +472,7 @@ namespace Clifton.Semantics
 
 					if (prop != null)
 					{
-						ProcessInstance(membrane, prop, processOnCallerThread);
+						ProcessInstance(membrane, caller, prop, processOnCallerThread);
 					}
 				});
 		}
