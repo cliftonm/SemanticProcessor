@@ -13,6 +13,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Clifton.Extensions", "Clift
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Clifton.Semantics.UnitTests", "Clifton.Semantics.UnitTests\Clifton.Semantics.UnitTests.csproj", "{6372D56D-5EAE-46B3-98C5-A2BEB62E44C2}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Demos", "Demos", "{C495C0F9-F66C-4D76-8159-8EF1A91D9342}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Make", "Demos\Make\Make.csproj", "{F70FEA48-6FF1-4FA6-A57C-A7C62E49A7D0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SemanticComputingTaxes", "Demos\SemanticComputingTaxes\SemanticComputingTaxes.csproj", "{9762DC1F-AE9B-4D9F-BCED-85C143B66185}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -43,8 +49,20 @@ Global
 		{6372D56D-5EAE-46B3-98C5-A2BEB62E44C2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6372D56D-5EAE-46B3-98C5-A2BEB62E44C2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6372D56D-5EAE-46B3-98C5-A2BEB62E44C2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F70FEA48-6FF1-4FA6-A57C-A7C62E49A7D0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F70FEA48-6FF1-4FA6-A57C-A7C62E49A7D0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F70FEA48-6FF1-4FA6-A57C-A7C62E49A7D0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F70FEA48-6FF1-4FA6-A57C-A7C62E49A7D0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9762DC1F-AE9B-4D9F-BCED-85C143B66185}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9762DC1F-AE9B-4D9F-BCED-85C143B66185}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9762DC1F-AE9B-4D9F-BCED-85C143B66185}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9762DC1F-AE9B-4D9F-BCED-85C143B66185}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{F70FEA48-6FF1-4FA6-A57C-A7C62E49A7D0} = {C495C0F9-F66C-4D76-8159-8EF1A91D9342}
+		{9762DC1F-AE9B-4D9F-BCED-85C143B66185} = {C495C0F9-F66C-4D76-8159-8EF1A91D9342}
 	EndGlobalSection
 EndGlobal

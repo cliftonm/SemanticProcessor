@@ -1,0 +1,231 @@
+<html>
+
+<head>
+<meta http-equiv="Content-Language" content="en-us">
+<meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+<title>Distributed Semantic Computing</title>
+</head>
+
+<body>
+
+<p>Distributed Multi-Threaded Semantic Computing</p>
+<p>An example of semantic distributed computing in a multi-threaded, Type-First 
+Development (TFD) approach</p>
+<h2>Introduction</h2>
+<p>I have written previously about semantic computing in the Higher Order 
+Programming Environment (HOPE) articles:</p>
+<p>[cite]</p>
+<p>In this article, I will be demonstrating distributed semantic computing using 
+a Type-First Development approach, a term first coined by Tomas Petricek in his 
+blog entry &quot;<a href="http://tomasp.net/blog/type-first-development.aspx/">Why 
+type-first development matters</a>.&quot;&nbsp; I will cover:</p>
+<h2>Fundamentals of Type-First Programming</h2>
+<p>The core tenet of type-based programming is that it is declarative.&nbsp; 
+Using generics, we describe &quot;what we want instantiated&quot; rather than &quot;how/when 
+to instantiate it.&quot;&nbsp; As Mr. Petricek states regarding type-first 
+programming: <i>&quot;...when designing a program, you start thinking about the 
+(data) types that represent the data your code works with...The development is 
+not driven by types. It starts with types...&quot;&nbsp; </i>The difference is technically very simple:</p>
+<p>How:</p>
+<pre>Foo foo = new Foo();</pre>
+<p>What:</p>
+<pre>Foo foo = Proggy.Make&lt;Foo&gt;();</pre>
+<p>While the &quot;what&quot; example above looks trivial, consider what this affords 
+you in a simple logging example:</p>
+<pre>public static class Proggy
+{
+  public static T Make&lt;T&gt;()
+    where T : new()
+  {
+    Console.WriteLine(&quot;Making &quot; + typeof(T).Name);
+    return new T();
+  }
+}
+
+class Program
+{
+  static void Main(string[] args)
+  {
+    Proggy.Make&lt;StringBuilder&gt;();
+  }
+}</pre>
+<p align="center"><img border="0" src="make1.png" width="319" height="95"></p>
+<h2>Fundamentals of Semantic Computing</h2>
+<p>Semantic computing also reduces down to two very simple concepts: </p>
+<ul>
+	<li>A type is &quot;semantic&quot; -- it not only describes, but <i>qualifies</i> the 
+	meaning of its structure.</li>
+	<li>Computations are associated with semantic types.</li>
+</ul>
+<p>This is orthogonal to object-oriented 
+programming.&nbsp; In OOP, an object carries around with it a 
+collection of methods which implement computations on other (usually native, not 
+semantic) types!&nbsp; For example, in a simple OOP class:</p>
+<h3>A Non-Semantic Example</h3>
+<pre>public class Receipt
+{
+  public decimal Total(decimal amount, decimal taxes) { return amount * (1 + taxes); }
+}
+
+class Program
+{
+  static void Main(string[] args)
+  {
+    Console.WriteLine(&quot;Non-semantic: &quot; + new Receipt().Total(1M, .07M));
+  }
+}</pre>
+<h3>A Semantic Example</h3>
+<p>To convert this to something that is suitable for semantic computing, we need 
+to introduce a couple concepts: classes that are semantic types, and classes 
+that process semantic types.&nbsp; </p>
+<p><img border="0" src="note.png" width="24" height="32">&nbsp; A semantic 
+processor is actually just a sophisticated publisher/subscriber system.</p>
+<h4>Semantic Type Classes</h4>
+<p>We implement a semantic type through the use of an interface and a concrete 
+class:</p>
+<pre>public interface ISemanticType { }
+
+public class Purchase : ISemanticType
+{
+  public decimal Total { get; set; }
+  public decimal Taxes { get; set; }
+}</pre>
+<p><img border="0" src="note.png" width="24" height="32">&nbsp; Technically, 
+even <code>Total</code> and <code>Taxes</code> should / could be semantic types, 
+providing <i>semantic meaning</i> to their language-native types. </p>
+<p><img border="0" src="key-small.jpg" width="94" height="33"></p>
+<p>A semantic type:</p>
+<ol>
+	<li>Has no explicit constructor.</li>
+	<li>Does not implement computational methods</li>
+<li>Implements an interface that declares this class to be a semantic type--the 
+reason for this will be described later.</li>
+	<li>The interface has no methods or properties, it is simply a way of 
+	describing &quot;this thing is a semantic type.&quot;</li>
+</ol>
+<h4>Processing Semantic Types: Receptors</h4>
+<p>We need to implement &quot;something&quot; that processes the semantic type.&nbsp; Borrowing 
+from HOPE, the &quot;something&quot; is called a &quot;receptor&quot;:</p>
+<pre>public interface IReceptor { }
+public interface IReceptor&lt;T&gt; : IReceptor
+  where T : ISemanticType
+{
+  void Process(T semanticType);
+}
+
+public class Computation : IReceptor&lt;Purchase&gt;
+{
+  public void Process(Purchase p)
+  {
+    Console.WriteLine(&quot;Semantic:&quot; + p.Total * (1 + p.Taxes));
+  }
+}</pre>
+<p><img border="0" src="key-small.jpg" width="94" height="33"></p>
+<p>We note several key things here (should I have used the note icon or the key 
+icon?):</p>
+<ol>
+	<li>We have a memberless <code>IReceptor</code> interface.</li>
+	<li>We provide an interface <code>IReceptor&lt;T&gt;</code> to declare that a specific 
+	<code>Process</code> 
+method with an <code>ISemanticType</code> parameter.&nbsp; While not necessary, this is a 
+useful declaration of what <code>Process</code> methods the concrete receptor needs to 
+implement.</li>
+	<li>We implement a concrete receptor that processes the <code>Purchase</code> type.</li>
+</ol>
+<h4>Introducing The Semantic Processor</h4>
+<p>We need something that calls the <code>Process</code> method on 
+receptors receiving the semantic type when a semantic type is actually 
+instantiated:</p>
+<pre>public class SemanticProcessor
+{
+  protected Dictionary&lt;Type, List&lt;Type&gt;&gt; typeReceptors;
+
+  public SemanticProcessor()
+  {
+    typeReceptors = new Dictionary&lt;Type, List&lt;Type&gt;&gt;();
+  }
+
+  public void Register&lt;T, R&gt;()
+    where T : ISemanticType
+    where R : IReceptor
+  {
+    List&lt;Type&gt; receptors;
+    Type ttype = typeof(T);
+    Type rtype = typeof(R);
+
+    if (!typeReceptors.TryGetValue(ttype, out receptors))
+    {
+      receptors = new List&lt;Type&gt;();
+      typeReceptors[ttype] = receptors;
+    }
+
+    receptors.Add(rtype);
+  }
+
+  public void Process&lt;T&gt;(Action&lt;T&gt; initializer)
+    where T : ISemanticType, new()
+  {
+    Type ttype = typeof(T);
+    T semType = new T();
+    initializer(semType);
+
+    foreach (Type rtype in typeReceptors[ttype])
+    {
+      dynamic receptor = Activator.CreateInstance(rtype);
+      receptor.Process(semType);
+    }
+  }
+}</pre>
+<h4>Putting It All Together</h4>
+<p>Using the <code>SemanticProcessor</code> involves a two step process:</p>
+<ol>
+	<li>Register the semantic type with one or more receptors.</li>
+	<li>When we need some computation(s) performed on the semantic type, call 
+	the Process method with an initializer to initialize properties of the 
+	semantic type.</li>
+</ol>
+<p>It looks like this:</p>
+<pre>static void Main(string[] args)
+{
+  // non-semantic computation:
+  Console.WriteLine(&quot;Non-semantic: &quot; + new Receipt().Total(1M, .07M));
+
+  // semantic computing:
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.Register&lt;Purchase, Computation&gt;();
+  sp.Process&lt;Purchase&gt;((t) =&gt; { t.Total = 1M; t.Taxes = 0.07M; });
+}</pre>
+<p align="center"><img border="0" src="semantic1.png" width="295" height="107"></p>
+<p><img border="0" src="note.png" width="24" height="32"> We observe:</p>
+<ol>
+	<li>The receptor is instantiated <i>on demand</i>.&nbsp; A huge advantage 
+	here as we don't ourselves need to manage collections of instances anymore 
+	-- throw out your dependency injectors!</li>
+	<li>We take advantage of the <code>dynamic</code> keyword and let C# handle the 
+	reflection to invoke the correct <code>Process</code> method for the required semantic 
+	type instance.</li>
+	<li>Our program isn't instantiating anything itself.</li>
+</ol>
+<p><img border="0" src="important.png" width="38" height="32"> The fact that the receptor is being instantiated by the <code>SemanticProcessor</code> 
+allows us to, in the more sophisticated implementation that you'll see later:</p>
+<ol>
+	<li>Wrap the <code>Process</code> call in a try-catch block to provide a unified exception handling 
+mechanism.</li>
+<li>Log all processing.</li>
+	<li>When the call completes, automatically call <code>Dispose</code> on receptors that 
+implement <code>IDisposable.</code> </li>
+<li>Execute the call asynchronously -- calls into receptors to process semantic 
+types can be put on other threads.</li>
+	<li>Distribute the call to other receptors &quot;in the cloud&quot; for processing.</li>
+</ol>
+<p><img border="0" src="smiley.png" width="32" height="32"> The last point, 
+distribute the call to other receptors in the cloud, unlocks a vast potential 
+for distributed semantic computing!</p>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+
+</body>
+
+</html>
