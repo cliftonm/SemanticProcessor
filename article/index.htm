@@ -20,6 +20,11 @@ a Type-First Development approach, a term first coined by Tomas Petricek in his
 blog entry &quot;<a href="http://tomasp.net/blog/type-first-development.aspx/">Why 
 type-first development matters</a>.&quot;</p>
 <p>[more]</p>
+<h3>Source Code</h3>
+<p><img border="0" src="downloadthecode.png" width="78" height="78">&nbsp; </p>
+<p>The code can be found on GitHub:
+<a href="https://github.com/cliftonm/SemanticProcessor">
+https://github.com/cliftonm/SemanticProcessor</a> </p>
 <h2>Fundamentals of Type-First Programming</h2>
 <p>The core tenet of type-based programming is that it is declarative.&nbsp; 
 Using generics, we describe &quot;what we want instantiated&quot; rather than &quot;how/when 
@@ -163,7 +168,7 @@ instantiated:</p>
     receptors.Add(rtype);
   }
 
-  public void Process&lt;T&gt;(Action&lt;T&gt; initializer)
+  public void ProcessInstance&lt;T&gt;(Action&lt;T&gt; initializer)
     where T : ISemanticType, new()
   {
     Type ttype = typeof(T);
@@ -178,11 +183,12 @@ instantiated:</p>
   }
 }</pre>
 <h4>Putting It All Together</h4>
+<p align="center"><img border="0" src="prototype.png" width="511" height="324"></p>
 <p>Using the <code>SemanticProcessor</code> involves a two step process:</p>
 <ol>
 	<li>Register the semantic type with one or more receptors.</li>
 	<li>When we need some computation(s) performed on the semantic type, call 
-	the Process method with an initializer to initialize properties of the 
+	the <code>ProcessInstance method</code> with an <code>Action&lt;T&gt;</code> initializer to initialize properties of the 
 	semantic type.</li>
 </ol>
 <p>It looks like this:</p>
@@ -232,9 +238,8 @@ We need:</p>
 <ul>
 	<li>The ability to work with both stateless (instantiated by the semantic 
 	processor) and stateful (instantiated by the application) receptors.</li>
-	<li>Semantic types should be processed asynchronously on worker threads (the 
-	default behavior) as well as the caller's thread for synchronous 
-	requirements</li>
+<li>Semantic types should be processed asynchronously on worker threads (the 
+default behavior) as well as the caller's thread for synchronous requirements</li>
 	<li>In addition to the semantic type, its sub-types should be processed as 
 	well by any interested parties (receptors.)&nbsp; This allows us to create 
 	new semantic types while still retaining the behaviors implemented with 
@@ -244,6 +249,89 @@ We need:</p>
 	HOPE, these containers are called <b>membranes</b>, and I'll use that term 
 	here as well, borrowing from a field called Membrane Computing.</li>
 </ul>
+<p>We also want the implementation to provide the capabilities described at the 
+end of the previous section:</p>
+<ol>
+	<li>Wrap the <code>Process</code> call in a try-catch block to provide a unified exception handling 
+mechanism.</li>
+<li>Log all processing.</li>
+	<li>When the call completes, automatically call <code>Dispose</code> on receptors that 
+implement <code>IDisposable.</code> </li>
+<li>Execute the call asynchronously -- calls into receptors to process semantic 
+types can be put on other threads.</li>
+	<li>Receptors, being constructed by the semantic processor for the sole 
+	purpose of processing a semantic type, are effectively stateless (sometimes 
+	we need a stateful receptor--the real implementation of the semantic 
+	processor supports this.)</li>
+	<li>Distribute the call to other receptors on the network for processing.</li>
+</ol>
+<p>Integration tests are a good way of illustrating the functionality of the 
+Semantic Processor -- I'll be using NUnit for running integration tests.&nbsp; I 
+will also dive into some of the more interesting code at certain point in the 
+integration tests.&nbsp; </p>
+<p>Why do I call them integration tests?&nbsp; Because they demonstrate 
+configuring and testing a particular scenario rather than individual methods.&nbsp; 
+This more useful because:</p>
+<ol>
+	<li>It illustrates an real life use case</li>
+	<li>It exercises the system rather than discrete methods</li>
+	<li>In real life, most useful tests are actually integration tests</li>
+</ol>
+<h3>Membranes</h3>
+<p>In any one Semantic Processor &quot;system&quot;, a particular membrane type can only 
+exist once in that system.&nbsp; </p>
+<p><img border="0" src="magglass.png" width="64" height="64"></p>
+<pre>public IMembrane RegisterMembrane&lt;M&gt;()
+where M : IMembrane
+{
+  IMembrane membrane = RegisterMembrane(typeof(M));
+
+  return membrane;
+}
+
+protected IMembrane RegisterMembrane(Type m)
+{
+  IMembrane membrane;
+
+  if (!membranes.TryGetValue(m, out membrane))
+  {
+    membrane = (IMembrane)Activator.CreateInstance(m);
+    membranes[m] = membrane;
+    membraneReceptorTypes[membrane] = new List&lt;Type&gt;();
+    membraneReceptorInstances[membrane] = new List&lt;IReceptor&gt;();
+  }
+
+  return membrane;
+}</pre>
+<p>Note that the membrane instance is instantiated immediately and stored in 
+collection associated with its type.&nbsp; Additional collections are also 
+initialized for managing stateless receptor types and stateful instances within 
+membranes.</p>
+<p><img border="0" src="unittest.png" width="14" height="32"> We can test that 
+membranes are distinct by type:</p>
+<pre>/// &lt;summary&gt;
+/// Registering a membrane creates an instance of that membrane.
+/// &lt;/summary&gt;
+[Test]
+public void RegisterMembraneType()
+{
+  SemanticProcessor sp = new SemanticProcessor();
+  IMembrane membrane = sp.RegisterMembrane&lt;TestMembrane&gt;();
+  Assert.That(sp.Membranes.Contains(membrane), &quot;Expected membrane instance.&quot;);
+}
+
+/// &lt;summary&gt;
+/// Registering the same membrane type returns the same instance.
+/// &lt;/summary&gt;
+[Test]
+public void RegisterSameMembraneType()
+{
+  SemanticProcessor sp = new SemanticProcessor();
+  IMembrane membrane1 = sp.RegisterMembrane&lt;TestMembrane&gt;();
+  IMembrane membrane2 = sp.RegisterMembrane&lt;TestMembrane&gt;();
+  Assert.That(membrane1 == membrane2, &quot;Expected the same membrane instance.&quot;);
+}</pre>
+<h3>Stateless Receptors</h3>
 <p>&nbsp;</p>
 <p>&nbsp;</p>
 <p>&nbsp;</p>

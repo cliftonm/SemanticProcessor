@@ -49,7 +49,6 @@
     <Compile Include="MembraneTests.cs" />
     <Compile Include="StatefulReceptorTests.cs" />
     <Compile Include="StatelessReceptorTests.cs" />
-    <Compile Include="RegistrationTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
