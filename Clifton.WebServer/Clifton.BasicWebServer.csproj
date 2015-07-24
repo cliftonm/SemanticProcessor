@@ -4,15 +4,16 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{6372D56D-5EAE-46B3-98C5-A2BEB62E44C2}</ProjectGuid>
+    <ProjectGuid>{1A2E5349-DC03-4C87-9F92-32F744965BB3}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Clifton.Semantics.UnitTests</RootNamespace>
-    <AssemblyName>Clifton.Semantics.UnitTests</AssemblyName>
+    <RootNamespace>Clifton.BasicWebServer</RootNamespace>
+    <AssemblyName>Clifton.WebServer</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -22,6 +23,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
@@ -29,11 +31,10 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject />
+  </PropertyGroup>
   <ItemGroup>
-    <Reference Include="nunit.framework, Version=2.6.3.13283, Culture=neutral, PublicKeyToken=96d09a1eb7f44a77, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\lib\nunit.framework.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -43,23 +44,20 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ComplexTypeTests.cs" />
-    <Compile Include="DistributedTests.cs" />
-    <Compile Include="LoggingTests.cs" />
-    <Compile Include="MembraneTests.cs" />
-    <Compile Include="StatefulReceptorTests.cs" />
-    <Compile Include="StatelessReceptorTests.cs" />
-    <Compile Include="RegistrationTests.cs" />
+    <Compile Include="Converter.cs" />
+    <Compile Include="RouteHandler.cs" />
+    <Compile Include="Router.cs" />
+    <Compile Include="Server.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SessionManager.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Clifton.Semantics.csproj">
-      <Project>{77cdda23-7d2c-432b-beeb-db6d7b574f4c}</Project>
-      <Name>Clifton.Semantics</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\RestReceptor\RestReceptor.csproj">
-      <Project>{13a12128-3ce5-4d26-978c-212ea7a39a96}</Project>
-      <Name>RestReceptor</Name>
+    <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Clifton.Extensions\Clifton.Extensions.csproj">
+      <Project>{3994ca2a-d499-429a-b04a-3e3ed33d357c}</Project>
+      <Name>Clifton.Extensions</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

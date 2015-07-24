@@ -23,6 +23,7 @@ namespace WinFormDemo
 			Form1 form = new Form1();
 			SemProc = new SemanticProcessor();
 			SemProc.Register<LoggerMembrane, LoggingReceptor>();
+			DistReceptor = new DistributedComputingReceptor();
 			// InitializeSemantics(form);
 
 			Application.Run(form);

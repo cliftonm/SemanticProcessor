@@ -18,7 +18,8 @@ Programming Environment (HOPE) articles:</p>
 <p>In this article, I will be demonstrating distributed semantic computing using 
 a Type-First Development approach, a term first coined by Tomas Petricek in his 
 blog entry &quot;<a href="http://tomasp.net/blog/type-first-development.aspx/">Why 
-type-first development matters</a>.&quot;&nbsp; I will cover:</p>
+type-first development matters</a>.&quot;</p>
+<p>[more]</p>
 <h2>Fundamentals of Type-First Programming</h2>
 <p>The core tenet of type-based programming is that it is declarative.&nbsp; 
 Using generics, we describe &quot;what we want instantiated&quot; rather than &quot;how/when 
@@ -216,11 +217,35 @@ mechanism.</li>
 implement <code>IDisposable.</code> </li>
 <li>Execute the call asynchronously -- calls into receptors to process semantic 
 types can be put on other threads.</li>
-	<li>Distribute the call to other receptors &quot;in the cloud&quot; for processing.</li>
+	<li>Receptors, being constructed by the semantic processor for the sole 
+	purpose of processing a semantic type, are effectively stateless (sometimes 
+	we need a stateful receptor--the real implementation of the semantic 
+	processor supports this.)</li>
+	<li>Distribute the call to other receptors on the network for processing.</li>
 </ol>
 <p><img border="0" src="smiley.png" width="32" height="32"> The last point, 
-distribute the call to other receptors in the cloud, unlocks a vast potential 
+&quot;distribute the call to other receptors on the network&quot;, unlocks a vast potential 
 for distributed semantic computing!</p>
+<h2>Implementing a Real Semantic Processor</h2>
+<p>The code above is too simplistic for developing real semantic applications.&nbsp; 
+We need:</p>
+<ul>
+	<li>The ability to work with both stateless (instantiated by the semantic 
+	processor) and stateful (instantiated by the application) receptors.</li>
+	<li>Semantic types should be processed asynchronously on worker threads (the 
+	default behavior) as well as the caller's thread for synchronous 
+	requirements</li>
+	<li>In addition to the semantic type, its sub-types should be processed as 
+	well by any interested parties (receptors.)&nbsp; This allows us to create 
+	new semantic types while still retaining the behaviors implemented with 
+	sub-types.</li>
+	<li>To manage the exchange of semantic types between receptors, we need 
+	containers that &quot;contain&quot; the communication between receptors.&nbsp; In 
+	HOPE, these containers are called <b>membranes</b>, and I'll use that term 
+	here as well, borrowing from a field called Membrane Computing.</li>
+</ul>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
 <p>&nbsp;</p>
 <p>&nbsp;</p>
 <p>&nbsp;</p>

@@ -19,6 +19,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Make", "Demos\Make\Make.csp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SemanticComputingTaxes", "Demos\SemanticComputingTaxes\SemanticComputingTaxes.csproj", "{9762DC1F-AE9B-4D9F-BCED-85C143B66185}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Clifton.BasicWebServer", "Clifton.WebServer\Clifton.BasicWebServer.csproj", "{1A2E5349-DC03-4C87-9F92-32F744965BB3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RestReceptor", "RestReceptor\RestReceptor.csproj", "{13A12128-3CE5-4D26-978C-212EA7A39A96}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -57,6 +61,14 @@ Global
 		{9762DC1F-AE9B-4D9F-BCED-85C143B66185}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9762DC1F-AE9B-4D9F-BCED-85C143B66185}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9762DC1F-AE9B-4D9F-BCED-85C143B66185}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1A2E5349-DC03-4C87-9F92-32F744965BB3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1A2E5349-DC03-4C87-9F92-32F744965BB3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1A2E5349-DC03-4C87-9F92-32F744965BB3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1A2E5349-DC03-4C87-9F92-32F744965BB3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{13A12128-3CE5-4D26-978C-212EA7A39A96}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{13A12128-3CE5-4D26-978C-212EA7A39A96}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{13A12128-3CE5-4D26-978C-212EA7A39A96}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{13A12128-3CE5-4D26-978C-212EA7A39A96}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

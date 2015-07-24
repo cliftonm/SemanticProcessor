@@ -397,6 +397,13 @@ namespace Clifton.Semantics
 			pmembranes.Where(m => m != caller).ForEach((m) => ProcessInstance(m, membrane, obj, processOnCallerThread));
 		}
 
+		public void ProcessInstance<M>(ISemanticType obj, bool processOnCallerThread = false)
+			where M : IMembrane
+		{
+			IMembrane m = RegisterMembrane<M>();
+			ProcessInstance(m, null, obj, processOnCallerThread);
+		}
+
 		/// <summary>
 		/// Process an instance where we only know that it implements ISemanticType as opposed the the concrete type in the generic method above.
 		/// We cannot use "dynamic" in this case, therefore we have to use Method.Invoke.
@@ -426,15 +433,16 @@ namespace Clifton.Semantics
 				}
 
 				// Call immediately?
+				MethodInfo method = GetProcessMethod(target, tsource);
+
 				if (processOnCallerThread)
 				{
-					MethodInfo method = GetProcessMethod(target, tsource);
 					method.Invoke(target, new object[] { this, membrane, obj });
 				}
 				else
 				{
 					// Pick a thread that has the least work to do.
-					threadPool.MinBy(tp => tp.Count).Enqueue(new MethodInvokeCall() { SemanticInstance = obj, Receptor = target, Parameters = new object[] { this, membrane, obj } });
+					threadPool.MinBy(tp => tp.Count).Enqueue(new MethodInvokeCall() { Method = method, SemanticInstance = obj, Receptor = target, Parameters = new object[] { this, membrane, obj } });
 				}
 			}
 
@@ -443,15 +451,16 @@ namespace Clifton.Semantics
 
 			foreach (IReceptor receptor in sreceptors)
 			{
+				MethodInfo method = GetProcessMethod(receptor, tsource);
+
 				// Call immediately?
 				if (processOnCallerThread)
 				{
-					MethodInfo method = GetProcessMethod(receptor, tsource);
 					method.Invoke(receptor, new object[] { this, membrane, obj });
 				}
 				else
 				{
-					threadPool.MinBy(tp => tp.Count).Enqueue(new MethodInvokeCall() { SemanticInstance = obj, Receptor = receptor, Parameters = new object[] { this, membrane, obj }, AutoDispose = false });
+					threadPool.MinBy(tp => tp.Count).Enqueue(new MethodInvokeCall() { Method = method, SemanticInstance = obj, Receptor = receptor, Parameters = new object[] { this, membrane, obj }, AutoDispose = false });
 				}
 			}
 
@@ -643,6 +652,7 @@ namespace Clifton.Semantics
 			}
 			catch (Exception ex)
 			{
+				System.Diagnostics.Debug.WriteLine(ex.Message + "\r\n" + ex.StackTrace);
 				// Prevent recursion if the exception process itself throws an exception.
 				if (!(rc.SemanticInstance is ST_Exception))
 				{
