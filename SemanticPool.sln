@@ -3,8 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2012
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Clifton.Semantics", "Clifton.Semantics.csproj", "{77CDDA23-7D2C-432B-BEEB-DB6D7B574F4C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MoreLinq", "..\SemanticPool\MoreLinq\MoreLinq.csproj", "{30A6BEAB-BCF6-4D8D-BD2A-46F33C191EBC}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SimpleDemo", "SimpleDemo\SimpleDemo.csproj", "{F92C99D7-CC55-4788-9225-91262ED48041}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WinFormDemo", "WinFormDemo\WinFormDemo.csproj", "{335E997C-DE4A-49C9-8CA9-FEA9EAE06848}"
@@ -33,10 +31,6 @@ Global
 		{77CDDA23-7D2C-432B-BEEB-DB6D7B574F4C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{77CDDA23-7D2C-432B-BEEB-DB6D7B574F4C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{77CDDA23-7D2C-432B-BEEB-DB6D7B574F4C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{30A6BEAB-BCF6-4D8D-BD2A-46F33C191EBC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{30A6BEAB-BCF6-4D8D-BD2A-46F33C191EBC}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{30A6BEAB-BCF6-4D8D-BD2A-46F33C191EBC}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{30A6BEAB-BCF6-4D8D-BD2A-46F33C191EBC}.Release|Any CPU.Build.0 = Release|Any CPU
 		{F92C99D7-CC55-4788-9225-91262ED48041}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{F92C99D7-CC55-4788-9225-91262ED48041}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F92C99D7-CC55-4788-9225-91262ED48041}.Release|Any CPU.ActiveCfg = Release|Any CPU

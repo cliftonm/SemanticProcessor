@@ -63,10 +63,26 @@ namespace Clifton.Semantics.UnitTests
 			spOut.ProcessInstance<TestMembrane, TestDistributedSemanticType>((t) =>
 				{
 					t.Message = "Hello World";
-					t.Foo = "123";
 				});
 
 			// Wait a bit for threads to do their thing and Http posts to do their things.
+			// System.Diagnostics.Debug.WriteLine("Waiting...");
+			// !*!*!*!* Sometimes this wait must be longer -- the unit test engine can really slow things down.
+			// !*!*!*!* This is particularly true when running the test in the debugger!
+			// !*!*!*!* If this delay isn't long enough for the server's message to be processed, you will get
+			// !*!*!*!* errors related to accessing objects on an unloaded AppDomain.
+			// !*!*!*!* In real life this woudn't happen -- this is an artifact of unit testing a complex
+			// !*!*!*!* multi-threaded process.
+			//Thread.Sleep(500);
+
+			// Because we know it works, we could actually do this, which is particularly useful when we're
+			// debugging and single stepping through code -- we do not want the test in this AppDomain
+			// to exit prematurely!
+			while (String.IsNullOrEmpty(received))
+			{
+				Thread.Sleep(0);
+			}
+
 			Assert.That(received == "Hello World", "Expected to receive 'Hello World'");
 		}
 	}

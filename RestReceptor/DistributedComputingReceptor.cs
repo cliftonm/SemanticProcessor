@@ -22,7 +22,6 @@ namespace RestReceptor
 	public class TestDistributedSemanticType : ISemanticType
 	{
 		public string Message { get; set; }
-		public string Foo { get; set; }
 	}
 
 	/// <summary>
@@ -80,7 +79,6 @@ namespace RestReceptor
 
 		protected ResponsePacket ProcessInboundSemanticType(Session session, Dictionary<string, object> parms)
 		{
-			//string json = parms..ToString();
 			string json = parms["Data"].ToString();
 			JObject jobj = JObject.Parse(json);
 			string type = jobj["_type_"].ToString();
@@ -90,7 +88,6 @@ namespace RestReceptor
 
 			// Requires that the namespace also matches the remote's namespace.
 			Type ttarget = Type.GetType(type);	
-
 			ISemanticType target = (ISemanticType)Activator.CreateInstance(ttarget);
 			JsonConvert.PopulateObject(json, target);
 			sp.ProcessInstance<DistributedProcessMembrane>(target);

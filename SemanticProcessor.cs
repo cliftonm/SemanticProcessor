@@ -35,12 +35,11 @@ namespace Clifton.Semantics
 	public class MethodInvokeCall : ProcessCall
 	{
 		public MethodInfo Method { get; set; }
-		public object Target { get; set; }
 		public object[] Parameters { get; set; }
 
 		public override void MakeCall()
 		{
-			Method.Invoke(Target, Parameters);
+			Method.Invoke(Receptor, Parameters);
 		}
 	}
 
