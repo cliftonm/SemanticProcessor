@@ -8,18 +8,44 @@
 
 <body>
 
-<p>Distributed Multi-Threaded Semantic Computing</p>
-<p>An example of semantic distributed computing in a multi-threaded, Type-First 
-Development (TFD) approach</p>
+<p>Distributed Semantic Computing</p>
+<p>Distributed semantic computing in a multi-threaded, Type-First 
+Development (TFD) system</p>
+<h2 align="center"><img border="0" src="distcomp1.png" width="630" height="306"></h2>
 <h2>Introduction</h2>
-<p>I have written previously about semantic computing in the Higher Order 
-Programming Environment (HOPE) articles:</p>
-<p>[cite]</p>
-<p>In this article, I will be demonstrating distributed semantic computing using 
-a Type-First Development approach, a term first coined by Tomas Petricek in his 
+<p>I have written previously about semantic computing in the 
+<a href="http://www.higherorderprogramming.com/">Higher Order Programming 
+Environment</a> (HOPE) articles:</p>
+<p>
+<a href="http://www.codeproject.com/Articles/777843/HOPE-Higher-Order-Programming-Environment">
+Higher Order Programming Environment</a><br>
+<a href="http://www.codeproject.com/Articles/781135/APOD-Website-Scraper-a-HOPE-demonstration">
+APOD Web Scraper, A HOPE Demonstration</a><br>
+<a href="http://www.codeproject.com/Articles/786118/Hunt-the-Wumpus">Hunt the 
+Wumpus Implemented in HOPE</a><br>
+<a href="http://www.codeproject.com/Articles/837878/The-Semantic-Database-In-Action">
+A Semantic Database In Action</a><br>
+<a href="http://www.codeproject.com/Articles/797457/The-Semantic-Web-and-Natural-Language-Processing">
+The Semantic Web and Natural Language Processing</a></p>
+<p>In this article, I will demonstrate distributed semantic computing using 
+a Type-First Development (TFD) approach, a term first coined by Tomas Petricek in his 
 blog entry &quot;<a href="http://tomasp.net/blog/type-first-development.aspx/">Why 
 type-first development matters</a>.&quot;</p>
-<p>[more]</p>
+<p>In this article, I've re-written the HOPE engine to utilize &quot;type declarative 
+programming.&quot;&nbsp; This is a style of programming that relies heavily on 
+generics to declaratively describe what should be done, not how.&nbsp; It is the 
+other side of the TFD coin -- in addition to developing types first, we also 
+implement processes that operate on generic types, particularly those that 
+implement specific interfaces.&nbsp; Similar to how events, delegates, 
+callbacks, and so forth are used for an inversion of control with regards to 
+program behavior, &quot;type declarative programming&quot; is an inversion of control for 
+instantiating objects.&nbsp; Unlike HOPE, where types are declared in XML and 
+compiled at runtime, here we use types implemented in the code itself.&nbsp; 
+Because of .NET's rich reflection and assembly loading capabilities, the 
+difference is irrelevant to the overall goals of HOPE, but the difference to the 
+developer is significant, especially with regards to the safety that a typed 
+language gives you at runtime and the ease of programming (Intellisense and 
+compile-time checking) in a typed language during development.</p>
 <h3>Source Code</h3>
 <p><img border="0" src="downloadthecode.png" width="78" height="78">&nbsp; </p>
 <p>The code can be found on GitHub:
@@ -277,25 +303,23 @@ This more useful because:</p>
 	<li>It exercises the system rather than discrete methods</li>
 	<li>In real life, most useful tests are actually integration tests</li>
 </ol>
-<h3>Membranes</h3>
-<p>In any one Semantic Processor &quot;system&quot;, a particular membrane type can only 
-exist once in that system.&nbsp; </p>
-<p><img border="0" src="magglass.png" width="64" height="64"></p>
+<h3>Membrane Registration</h3>
+<p>Membranes are containers for systems of receptors, which I call computational 
+islands.&nbsp; Membranes have some 
+advanced features as well, which we'll look at later.&nbsp; But for now, the 
+important thing to know is that in any one Semantic Processor &quot;system&quot;, a 
+particular membrane type can only exist once in that system.&nbsp; </p>
+<p><img border="0" src="magglass.png" width="64" height="64">Behind the scenes, 
+the implementation looks like this:</p>
 <pre>public IMembrane RegisterMembrane&lt;M&gt;()
-where M : IMembrane
-{
-  IMembrane membrane = RegisterMembrane(typeof(M));
-
-  return membrane;
-}
-
-protected IMembrane RegisterMembrane(Type m)
+  where M : IMembrane, new()
 {
   IMembrane membrane;
+  Type m = typeof(M);
 
   if (!membranes.TryGetValue(m, out membrane))
   {
-    membrane = (IMembrane)Activator.CreateInstance(m);
+    membrane = new M();
     membranes[m] = membrane;
     membraneReceptorTypes[membrane] = new List&lt;Type&gt;();
     membraneReceptorInstances[membrane] = new List&lt;IReceptor&gt;();
@@ -332,11 +356,834 @@ public void RegisterSameMembraneType()
   Assert.That(membrane1 == membrane2, &quot;Expected the same membrane instance.&quot;);
 }</pre>
 <h3>Stateless Receptors</h3>
-<p>&nbsp;</p>
-<p>&nbsp;</p>
-<p>&nbsp;</p>
-<p>&nbsp;</p>
-<p>&nbsp;</p>
+<p>Receptors process semantic types when the semantic type is &quot;published&quot;.&nbsp; 
+Stateless receptors are created and destroyed as needed by the semantic 
+processor (given that they usually run on their own thread, this avoids any 
+mutable, cross-thread issues that would otherwise arise in a stateful, 
+persistent receptor -- in other words, the system protects you from yourself.)&nbsp; To test some basic operations of a stateless receptor, we need:</p>
+<ul>
+	<li>a test membrane</li>
+	<li>a test semantic type</li>
+	<li>a test receptor</li>
+</ul>
+<p>In our test fixture, we'll have the receptor implement IDisposable so we can 
+also test that the receptor is disposed after the call.&nbsp; We'll also 
+implement an interface and a sub-classed receptor to test that passing objects 
+that implement an interfaces.&nbsp; Here's the basic pieces:</p>
+<pre>public class TestMembrane : Membrane { }
+public class TestSemanticType : ISemanticType { }
+
+public interface ITestSemanticType { };
+public class InterfaceTestSemanticType : ISemanticType, ITestSemanticType { }
+
+public class TestReceptor : IReceptor, IDisposable
+{
+  public bool AFlag { get; set; }
+
+  public TestReceptor()
+  {
+    constructorCalled = true;
+  }
+
+  public void Process(ISemanticProcessor proc, IMembrane membrane, TestSemanticType t)
+  {
+    callSuccess = true;
+  }
+
+  public void Dispose()
+  {
+    disposeCalled = true;
+  }
+}
+
+public class TestReceptor2 : IReceptor
+{
+  public void Process(ISemanticProcessor proc, IMembrane membrane, TestSemanticType t)
+  {
+    callSuccess2 = true;
+  }
+}
+
+public class DerivedTestReceptor : TestReceptor
+{
+}
+
+// IReceptor type is optional, but good practice to make sure you implement Process on the semantic type.
+public class InterfaceTestReceptor : IReceptor&lt;ITestSemanticType&gt; 
+{
+  public void Process(ISemanticProcessor proc, IMembrane membrane, ITestSemanticType t)
+  {
+    callSuccess = true;
+  }
+}</pre>
+<p><img border="0" src="unittest.png" width="14" height="32">&nbsp; The 
+integration 
+test's comments should be adequately explain what the test is doing.&nbsp; 
+Inspect how the membranes, semantic types, and receptors are set up in each 
+test.&nbsp; Note that all of these tests are performed in &quot;immediate execute&quot; 
+mode rather attaching the processing onto a thread.&nbsp; This makes the 
+integration 
+testing a lot easier.</p>
+<pre>/// &lt;summary&gt;
+/// Given a receptor in a membrane, a semantic type put into that membrane is received by that receptor.
+/// &lt;/summary&gt;
+[Test]
+public void ReceptorReceivesSemanticTypeOnItsMembrane()
+{
+  callSuccess = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.Register&lt;TestMembrane, TestReceptor&gt;();
+  sp.ProcessInstance&lt;TestMembrane, TestSemanticType&gt;(true);
+  Assert.That(callSuccess, &quot;Expected TestReceptor.Process to be called.&quot;);
+}
+
+/// &lt;summary&gt;
+/// Given a semantic type put into one membrane, the receptor in another membrane does not receive it.
+/// &lt;/summary&gt;
+[Test]
+public void ReceptorDoesNotReceiveSemanticTypeOnAnotherMembrane()
+{
+  callSuccess = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.Register&lt;TestMembrane, TestReceptor&gt;();
+  sp.ProcessInstance&lt;TestMembrane2, TestSemanticType&gt;(true);
+  Assert.That(!callSuccess, &quot;Expected TestReceptor.Process to NOT be called.&quot;);
+}
+
+/// &lt;summary&gt;
+/// Test that when we remove a semantic type from a membrane's receptor, the receptor no longer gets Process calls.
+/// &lt;/summary&gt;
+[Test]
+public void RemoveType()
+{
+  callSuccess = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.Register&lt;TestMembrane, TestReceptor&gt;();
+  sp.RemoveTypeNotify&lt;TestMembrane, TestReceptor, TestSemanticType&gt;();
+  sp.ProcessInstance&lt;TestMembrane, TestSemanticType&gt;(true);
+  Assert.That(!callSuccess, &quot;Expected TestReceptor.Process to NOT be called.&quot;);
+}
+
+/// &lt;summary&gt;
+/// Verify that when processing a semantic type, the receptor, registered by type, is created and destroyed.
+/// &lt;/summary&gt;
+[Test]
+public void ReceptorTypeCreateDestroy()
+{
+  constructorCalled = false;
+  disposeCalled = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.Register&lt;TestMembrane, TestReceptor&gt;();
+  sp.ProcessInstance&lt;TestMembrane, TestSemanticType&gt;(true);
+  Assert.That(constructorCalled, &quot;Expected constructor to be called.&quot;);
+  Assert.That(disposeCalled, &quot;Expected Dispose to be called.&quot;);
+}
+
+/// &lt;summary&gt;
+/// Test that a semantic instance initializer is called when the semantic type is constructed.
+/// &lt;/summary&gt;
+[Test]
+public void InitializerCalledForSemanticTypeConstruction()
+{
+  bool initializerCalled = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.Register&lt;TestMembrane, TestReceptor&gt;();
+  sp.ProcessInstance&lt;TestMembrane, TestSemanticType&gt;((t) =&gt; initializerCalled = true, true);
+  Assert.That(initializerCalled, &quot;Expected semantic type initializer to be called.&quot;);
+}
+
+/// &lt;summary&gt;
+/// Test that the base class' Process method gets called for a type that it handles,
+/// even though we instantiated a sub-class.
+/// &lt;/summary&gt;
+[Test]
+public void BaseClassProcessCalled()
+{
+  callSuccess = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.Register&lt;TestMembrane, DerivedTestReceptor&gt;();
+  sp.ProcessInstance&lt;TestMembrane, TestSemanticType&gt;(true);
+  Assert.That(callSuccess, &quot;Expected TestReceptor.Process to be called.&quot;);
+}
+
+/// &lt;summary&gt;
+/// Test that a receptor that implements Process on an interface gets called.
+/// &lt;/summary&gt;
+[Test]
+public void ReceptorOfInterfaceTypeCalled()
+{
+  callSuccess = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.Register&lt;TestMembrane, InterfaceTestReceptor&gt;();
+  sp.ProcessInstance&lt;TestMembrane, InterfaceTestSemanticType&gt;(true);
+  Assert.That(callSuccess, &quot;Expected TestReceptor.Process to be called.&quot;);
+}</pre>
+<pre>/// &lt;summary&gt;
+/// Verify that more than one receptor (but of different types in the same membrane) receives the Process call for the same semantic type.
+/// &lt;/summary&gt;
+[Test]
+public void MultipleProcessCalls()
+{
+  callSuccess = false;
+  callSuccess2 = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.Register&lt;TestMembrane, TestReceptor&gt;();
+  sp.Register&lt;TestMembrane, TestReceptor2&gt;();
+  sp.ProcessInstance&lt;TestMembrane, TestSemanticType&gt;(true);
+  Assert.That(callSuccess, &quot;Expected TestReceptor.Process to be called.&quot;);
+  Assert.That(callSuccess2, &quot;Expected TestReceptor2.Process to be called.&quot;);
+}
+
+/// &lt;summary&gt;
+/// Verify that the receptor initializer is called when a stateless receptor is instantiated.
+/// &lt;/summary&gt;
+[Test]
+public void ReceptorInitialization()
+{
+  receptorInitializerCalled = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.Register&lt;TestMembrane, TestReceptor&gt;((ir) =&gt;
+  {
+    // Unfortunately, a cast is required, because ir is type declared as IReceptor
+    // and I don't think it's possible to fix that because of the late callback.
+    TestReceptor r = (TestReceptor)ir;
+    r.AFlag = true;
+    receptorInitializerCalled = true;
+  });
+  sp.ProcessInstance&lt;TestMembrane, TestSemanticType&gt;(true);
+  Assert.That(receptorInitializerCalled, &quot;Expected TestReceptor initializer to be called to be called.&quot;);
+}</pre>
+<p><img border="0" src="magglass.png" width="64" height="64"> Under the hood, 
+there's a few interesting things going on.&nbsp; First, is the <code>ProcessInstance</code> 
+method itself (I'm showing only a subset of the method):</p>
+<pre>protected void ProcessInstance&lt;T&gt;(IMembrane membrane, IMembrane caller, T obj, bool processOnCallerThread)
+  where T : ISemanticType
+{
+  Type tsource = obj.GetType();
+  List&lt;Type&gt; receptors = GetReceptors(membrane, tsource);
+  Log(membrane, obj);
+
+  foreach (Type ttarget in receptors)
+  {
+    dynamic target = Activator.CreateInstance(ttarget);
+    ReceptorInitializer receptorInitializer;
+
+    if (receptorInitializers.TryGetValue(new MembraneReceptor() 
+       { Membrane = membrane, ReceptorType = ttarget }, out receptorInitializer))
+    {
+      receptorInitializer.Initializer(target);
+    }
+
+  // Call immediately?
+  if (processOnCallerThread)
+  {
+    Call(new DynamicCall() { SemanticInstance = obj, Receptor = target, Proc = () =&gt; target.Process(this, membrane, obj) });
+  }
+  else
+  {
+    // Pick a thread that has the least work to do.
+    threadPool.MinBy(tp =&gt; tp.Count).Enqueue(new DynamicCall() { SemanticInstance = obj, Receptor = target, Proc = () =&gt; target.Process(this, membrane, obj) });
+  }
+}</pre>
+<p>The other half is the call itself, which is either performed immediately or 
+queued onto a thread with the least number of worker to do.&nbsp; The call is 
+wrapped in a try-catch block and, if the receptor implements <code>IDisposable</code>, calls 
+the <code>Dispose</code> method immediately upon completion of the processing:</p>
+<pre>protected void Call(ProcessCall rc)
+{
+  try
+  {
+    rc.MakeCall();
+  }
+  catch (Exception ex)
+  {
+    // Prevent recursion if the exception process itself throws an exception.
+    if (!(rc.SemanticInstance is ST_Exception))
+    {
+      ProcessInstance(Logger, new ST_Exception(ex), true);
+    }
+  }
+  finally
+  {
+    if ( (rc.Receptor is IDisposable) &amp;&amp; (rc.AutoDispose) )
+    {
+      ((IDisposable)rc.Receptor).Dispose();
+    }
+  }
+}
+</pre>
+<p>As you can see, exception handling uses the semantic processor -- the 
+exception is wrapped into a semantic type and placed into the <code>Logger</code> membrane, 
+which is one of two membranes (the other being <code>Surface</code>) that the semantic 
+processor creates for you.</p>
+<h3>Logging Receptors</h3>
+<p>Since I concluded the previous section talking about exception logging, it 
+seems reasonable to demonstrate the integration tests for basic logging and 
+exception logging.&nbsp; The scaffolding for the integration tests involves a test receptor to 
+throw an exception and two other receptors, one for normal event logging and the 
+other for exception logging.</p>
+<pre>public static bool stLogged;
+public static bool exLogged;
+
+public class TestMembrane : Membrane { }
+public class TestSemanticType : ISemanticType { }
+public class TypeThrowsException : ISemanticType { }
+
+public class TestReceptor : IReceptor
+{
+  public void Process(ISemanticProcessor proc, IMembrane membrane, TestSemanticType t)
+  {
+  }
+
+  public void Process(ISemanticProcessor proc, IMembrane membrane, TypeThrowsException t)
+  {
+    throw new ApplicationException(&quot;Receptor exception&quot;);
+  }
+}
+
+public class LoggerReceptor : IReceptor
+{
+  public void Process(ISemanticProcessor proc, IMembrane membrane, ISemanticType t)
+  {
+    stLogged = t is TestSemanticType;
+  }
+}
+
+public class ExceptionReceptor : IReceptor
+{
+  public void Process(ISemanticProcessor proc, IMembrane membrane, ST_Exception ex)
+  {
+    exLogged = true;
+  }
+}</pre>
+<p><img border="0" src="note.png" width="24" height="32"> The standard logger 
+processes <code>ISemanticType</code> -- since all semantic types derive from 
+this interface, the logger's Process method will receive a notification for 
+every single semantic type that is 
+instantiated into the semantic processor.</p>
+<p><img border="0" src="unittest.png" width="14" height="32">&nbsp; We have two 
+integration tests, one for normal event logging and one for exception logging:</p>
+<pre>/// &lt;summary&gt;
+/// Verify the a process call is logged.
+/// &lt;/summary&gt;
+[Test]
+public void ProcessCallIsLogged()
+{
+  stLogged = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.Register&lt;LoggerMembrane, LoggerReceptor&gt;();
+  sp.Register&lt;LoggerMembrane, ExceptionReceptor&gt;();
+  sp.Register&lt;TestMembrane, TestReceptor&gt;();
+  sp.ProcessInstance&lt;TestMembrane, TestSemanticType&gt;(true);
+  Assert.That(stLogged, &quot;Expected Process call to be logged.&quot;);
+}
+
+/// &lt;summary&gt;
+/// Verify that an exception log is generated when a receptor process creates an exception.
+/// &lt;/summary&gt;
+[Test]
+public void ExceptionIsLogged()
+{
+  exLogged = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.Register&lt;LoggerMembrane, LoggerReceptor&gt;();
+  sp.Register&lt;LoggerMembrane, ExceptionReceptor&gt;();
+  sp.Register&lt;TestMembrane, TestReceptor&gt;();
+  sp.ProcessInstance&lt;TestMembrane, TypeThrowsException&gt;(true);
+  Assert.That(exLogged, &quot;Expected Exception call to be logged.&quot;);
+}</pre>
+<h3>Stateful Receptors</h3>
+<p>Stateful receptors are processing units that are instantiated, not by the 
+semantic processor, but by you.&nbsp; There are a lot of good reasons to have a 
+stateful receptor:</p>
+<ul>
+	<li>Logging - creating and destroying a log event receptor would start to 
+	have an impact on performance</li>
+	<li>Services that must persist to receive messages from external sources -- 
+	we'll see an example of that in the distributed semantic process test.</li>
+	<li>Complex initialization and/or stateful requirements</li>
+	<li>etc</li>
+</ul>
+<p><img border="0" src="unittest.png" width="14" height="32"> The integration tests for 
+stateful receptors is essentially identical to the ones for stateless receptors, 
+so I'll just show one to illustrate the difference in syntax:</p>
+<pre>/// &lt;summary&gt;
+/// Given a receptor in a membrane, a semantic type put into that membrane is received by that receptor.
+/// &lt;/summary&gt;
+[Test]
+public void ReceptorReceivesSemanticTypeOnItsMembrane()
+{
+  callSuccess = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.Register&lt;TestMembrane&gt;(new TestReceptor());
+  sp.ProcessInstance&lt;TestMembrane, TestSemanticType&gt;(true);
+  Assert.That(callSuccess, &quot;Expected TestReceptor.Process to be called.&quot;);
+}</pre>
+<p>Note how the <code>Register</code> function has a membrane type generic parameter but is 
+passed a receptor instance.</p>
+<h3>Complex Type Processing</h3>
+<p>Semantic types can be composed of other semantic types.&nbsp; As in HOPE, 
+when a complex type is instantiated into a membrane space, not only receptors 
+that process that base type <i>but also receptors that process its compositional 
+type</i> should be invoked.&nbsp; This allows us to create complex type systems 
+while still processing lower level types of which the more complex types are 
+composed.</p>
+<p>To test this, we need some scaffolding:</p>
+<pre>public static bool simpleTypeProcessed;
+public static bool complexTypeProcessed;
+
+public class TestMembrane : Membrane { }
+public class SimpleType : ISemanticType { }
+public class ComplexType : ISemanticType
+{
+  public SimpleType ASimpleType { get; set; }
+
+  public ComplexType()
+  {
+    ASimpleType = new SimpleType();
+  }
+}
+
+public class ComplexReceptor : IReceptor&lt;ComplexType&gt;
+{
+  public void Process(ISemanticProcessor pool, IMembrane membrane, ComplexType obj)
+  {
+    complexTypeProcessed = true;
+  }
+}
+
+public class SimpleReceptor : IReceptor&lt;SimpleType&gt;
+{
+  public void Process(ISemanticProcessor pool, IMembrane membrane, SimpleType obj)
+  {
+    simpleTypeProcessed = true;
+  }
+}</pre>
+<p><img border="0" src="unittest.png" width="14" height="32"> We have a single 
+integration test to verify that the inner &quot;simple&quot; type is processed as well when the 
+complex type is instantiated into the membrane:</p>
+<pre>[Test]
+public void ComplexTypePropertyProcessing()
+{
+  simpleTypeProcessed = false;
+  complexTypeProcessed = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.Register&lt;TestMembrane, ComplexReceptor&gt;();
+  sp.Register&lt;TestMembrane, SimpleReceptor&gt;();
+  sp.ProcessInstance&lt;TestMembrane, ComplexType&gt;(true);
+  Assert.That(complexTypeProcessed, &quot;Expected ComplexReceptor.Process to be called.&quot;);
+  Assert.That(simpleTypeProcessed, &quot;Expected SimpleReceptor.Process to be called.&quot;);
+}</pre>
+<p><img border="0" src="magglass.png" width="64" height="64">Behind the scenes, 
+reflection is used to discover public properties whose type implements 
+ISemanticType:</p>
+<pre>/// &lt;summary&gt;
+/// Any public properties that are of ISemanticType type and not null are also emitted into the membrane.
+/// &lt;/summary&gt;
+protected void ProcessInnerTypes(IMembrane membrane, IMembrane caller, ISemanticType obj, bool processOnCallerThread)
+{
+  var properties = obj.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public).
+     Where(pi =&gt; pi.PropertyType.GetInterfaces().Contains(typeof(ISemanticType)));
+
+  properties.ForEach(pi =&gt;
+  {
+    ISemanticType prop = (ISemanticType)pi.GetValue(obj);
+
+    if (prop != null)
+    {
+      ProcessInstance(membrane, caller, prop, processOnCallerThread);
+    }
+  });
+}</pre>
+<h3>Membrane Permeability</h3>
+<p>While earlier I stated that membranes are containers for receptors, they are 
+also hierarchical filters for semantic types.&nbsp; A semantic type can permeate 
+into a membrane, or it can permeate out, into another membrane.&nbsp; We'll use 
+that behavior later when discussing semantic distributed computing, but first, 
+we have some tests that ensure that membrane permeability works the way we want 
+it to.&nbsp; As usual, we have some scaffolding:</p>
+<pre>public static bool callSuccess;
+
+class TestMembrane : Membrane { }
+class OuterMembrane : Membrane { }
+class InnerMembrane : Membrane { }
+class InnerMembrane2 : Membrane { }
+public class TestSemanticType : ISemanticType { }
+
+public class TestReceptor : IReceptor
+{
+  public void Process(ISemanticProcessor proc, IMembrane membrane, TestSemanticType t)
+  {
+    callSuccess = true;
+  }
+}</pre>
+<p>I've added some pictures here to illustrate what's going on.</p>
+<p><img border="0" src="important.png" width="38" height="32"> Even though 
+hierarchical, you can think of membranes as more being three dimensional, such 
+that even though the inner membrane is outbound permeable to a type, the outer 
+membrane (the membrane it sits on) must be inwardly permeable to that type as 
+well!</p>
+<h4>Permeate Out</h4>
+<p align="center">
+<img border="0" src="permeateout.png" width="192" height="192"></p>
+<p align="left">
+<img border="0" src="unittest.png" width="14" height="32"></p>
+<pre>/// &lt;summary&gt;
+/// Verify that, when the inner membrane is permeable outbound to a type,
+/// that a receptor in the outer membrane, permeable inbound to that type, receive the type.
+/// &lt;/summary&gt;
+[Test]
+public void TypePermeatesOut()
+{
+  callSuccess = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.OutboundPermeableTo&lt;InnerMembrane, TestSemanticType&gt;();
+  sp.InboundPermeableTo&lt;OuterMembrane, TestSemanticType&gt;();
+  sp.AddChild&lt;OuterMembrane, InnerMembrane&gt;();
+  sp.Register&lt;OuterMembrane, TestReceptor&gt;();
+  sp.ProcessInstance&lt;InnerMembrane, TestSemanticType&gt;(true);
+  Assert.That(callSuccess, &quot;Expected receptor in outer membrane to process the ST placed in the inner membrane.&quot;);
+}</pre>
+<h4>Permeate In</h4>
+<p align="center"><img border="0" src="permeatein.png" width="192" height="192"></p>
+<p align="left"><img border="0" src="unittest.png" width="14" height="32"></p>
+<pre>/// &lt;summary&gt;
+/// Verify that, when the inner membrane is permeable inbound to a type,
+/// that a receptor in the inner membrane receives the type.
+/// &lt;/summary&gt;
+[Test]
+public void TypePermeatesIn()
+{
+  callSuccess = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.OutboundPermeableTo&lt;OuterMembrane, TestSemanticType&gt;();
+  sp.InboundPermeableTo&lt;InnerMembrane, TestSemanticType&gt;();
+  sp.AddChild&lt;OuterMembrane, InnerMembrane&gt;();
+  sp.Register&lt;InnerMembrane, TestReceptor&gt;();
+  sp.ProcessInstance&lt;OuterMembrane, TestSemanticType&gt;(true);
+  Assert.That(callSuccess, &quot;Expected receptor in inner membrane to process the ST placed in the outer membrane.&quot;);
+}</pre>
+<h4>Permeate Across</h4>
+<p align="center">
+<img border="0" src="permeateacross.png" width="456" height="192"></p>
+<p><img border="0" src="unittest.png" width="14" height="32"></p>
+<p>Given that permeating out and permeating in works, permeating across, via the 
+other membrane, should also work:</p>
+<pre>/// &lt;summary&gt;
+/// Verify that a type issued in one inner membrane can cross over to
+/// an adjacent inner membrane via outbound permeability on the source
+/// and inbound permeability on the target membrane.
+/// &lt;/summary&gt;
+[Test]
+public void TypePermeatesAcross()
+{
+  callSuccess = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.OutboundPermeableTo&lt;InnerMembrane, TestSemanticType&gt;();
+  sp.InboundPermeableTo&lt;OuterMembrane, TestSemanticType&gt;();
+  sp.OutboundPermeableTo&lt;OuterMembrane, TestSemanticType&gt;();
+  sp.InboundPermeableTo&lt;InnerMembrane2, TestSemanticType&gt;();
+  sp.AddChild&lt;OuterMembrane, InnerMembrane&gt;();
+  sp.AddChild&lt;OuterMembrane, InnerMembrane2&gt;();
+  sp.Register&lt;InnerMembrane2, TestReceptor&gt;();
+  sp.ProcessInstance&lt;InnerMembrane, TestSemanticType&gt;(true);
+  Assert.That(callSuccess, &quot;Expected receptor in inner membrane to process the ST placed in the adjacent inner membrane.&quot;);
+}</pre>
+<h4>Not Permeable Tests</h4>
+<p>And lastly, we want to ensure that if outbound or inbound permeability is not 
+established, the semantic type does not permeate out of its membrane to either 
+an outer or inner membrane.&nbsp; The code that prevents permeation has been 
+commented out.</p>
+<p><img border="0" src="unittest.png" width="14" height="32"></p>
+<pre>/// &lt;summary&gt;
+/// Outer membrane does not receive semantic type if inner membrane is not outbound permeable to it.
+/// &lt;/summary&gt;
+[Test]
+public void NotPermeableOut()
+{
+  callSuccess = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  // sp.OutboundPermeableTo&lt;InnerMembrane, TestSemanticType&gt;();
+  sp.InboundPermeableTo&lt;OuterMembrane, TestSemanticType&gt;();
+  sp.AddChild&lt;OuterMembrane, InnerMembrane&gt;();
+  sp.Register&lt;OuterMembrane, TestReceptor&gt;();
+  sp.ProcessInstance&lt;InnerMembrane, TestSemanticType&gt;(true);
+  Assert.That(!callSuccess, &quot;Expected receptor in outer membrane to NOT receive the ST placed in the inner membrane.&quot;);
+}
+
+/// &lt;summary&gt;
+/// Outer membrane does not receive semantic type if it is not inbound permeable to it.
+/// &lt;/summary&gt;
+[Test]
+public void NotPermeableIn()
+{
+  callSuccess = false;
+  SemanticProcessor sp = new SemanticProcessor();
+  sp.OutboundPermeableTo&lt;InnerMembrane, TestSemanticType&gt;();
+  // sp.InboundPermeableTo&lt;OuterMembrane, TestSemanticType&gt;();
+  sp.AddChild&lt;OuterMembrane, InnerMembrane&gt;();
+  sp.Register&lt;OuterMembrane, TestReceptor&gt;();
+  sp.ProcessInstance&lt;InnerMembrane, TestSemanticType&gt;(true);
+  Assert.That(!callSuccess, &quot;Expected receptor in outer membrane to NOT receive the ST placed in the inner membrane.&quot;);
+}</pre>
+<p><img border="0" src="magglass.png" width="64" height="64">Behind the scenes, 
+this whole issue of permeability is handled in by small method:</p>
+<pre>/// &lt;summary&gt;
+/// Traverse permeable membranes without calling back into the caller. While membranes should not be bidirectionally
+/// permeable, this does stop infinite recursion if the user accidentally (or intentionally) configured the membranes thusly.
+/// &lt;/summary&gt;
+protected void PermeateOut(IMembrane membrane, IMembrane caller, ISemanticType obj, bool processOnCallerThread)
+{
+  List&lt;IMembrane&gt; pmembranes = ((Membrane)membrane).PermeateTo(obj);
+  pmembranes.Where(m =&gt; m != caller).ForEach((m) =&gt; ProcessInstance(m, membrane, obj, processOnCallerThread));
+}</pre>
+<p><img border="0" src="key-small.jpg" width="94" height="33">In order to stop 
+bounce-back (A is permeable to B and B is permeable to A) we track who the 
+caller is so that when we traverse up or down the membrane hierarchy, we do not 
+traverse back to ourselves!</p>
+<p>Of course, the real workhorse is the PermeateTo method:</p>
+<pre>/// &lt;summary&gt;
+/// Given this membrane's outbound list, what membranes are inbound permeabe to the ST as well?
+/// &lt;/summary&gt;
+public List&lt;IMembrane&gt; PermeateTo(ISemanticType st)
+{
+  List&lt;IMembrane&gt; ret = new List&lt;IMembrane&gt;();
+  Type sttype = st.GetType();
+
+  if (outboundPermeableTo.Contains(sttype))
+  {
+    // Can we traverse to the parent?
+    if ((parent != null) &amp;&amp; (parent.inboundPermeableTo.Contains(sttype)))
+    {
+      ret.Add(parent);
+    }
+
+    // Can we traverse to children?
+    foreach (Membrane child in childMembranes)
+    {
+      if (child.inboundPermeableTo.Contains(sttype))
+      {
+        ret.Add(child);
+      }
+    }
+  }
+
+  return ret;
+}</pre>
+<h3>Distributed Semantic Computing</h3>
+<p align="center"><img border="0" src="distcomp1.png" width="630" height="306"></p>
+<p>DSC Membrane: Distributed Semantic Computing Membrane<br>
+DCR: Distributed Computing Receptor<br>
+ST: Semantic Type</p>
+<p>The pièce de résistance is the ability to create a stateful receptor that 
+implements a web server (in this case, the
+<a href="http://www.codeproject.com/Articles/859108/Writing-a-Web-Server-from-Scratch">
+Basic Web Server</a> I wrote about previously.)&nbsp; Using
+<a href="http://www.newtonsoft.com/json">Newtonsoft's</a> Json.NET 
+serialization, we can easily serialize and deserialize a semantic type into/from 
+JSON.&nbsp; While not the most efficient serialization format, I've chosen this 
+format because it gives you an idea of where I'm moving to next -- semantic 
+computing on the web.&nbsp; But for now, back to the integration test that 
+demonstrates how we can distribute the computation of semantic types.</p>
+<p>Again, we need scaffolding for the membranes and receptors:</p>
+<pre>public static string received;
+
+public class TestMembrane : Membrane { }
+
+public class TestReceptor : IReceptor
+{
+  public void Process(ISemanticProcessor proc, IMembrane membrane, TestDistributedSemanticType t)
+  {
+    received = t.Message;
+  }
+}
+
+public class DistributedProcessMembrane : Membrane { }
+
+// For unit test support. Normally, each distributed system would either declare its own types
+// or share types through a common assembly.
+public class TestDistributedSemanticType : ISemanticType
+{
+  public string Message { get; set; }
+}</pre>
+<p>Not much here.&nbsp; However, the setup for the test is a bit involved:</p>
+<p><img border="0" src="unittest.png" width="14" height="32"></p>
+<pre>/// &lt;summary&gt;
+/// Verify that a semantic type is received on a &quot;remote&quot; semantic processor.
+/// &lt;/summary&gt;
+[Test]
+public void DistributedComputation()
+{
+  SemanticProcessor spOut = new SemanticProcessor();
+  SemanticProcessor spIn = new SemanticProcessor();
+
+  received = &quot;&quot;;
+  OutboundDistributedComputingReceptor dcrOut = new OutboundDistributedComputingReceptor(4002);
+  InboundDistributedComputingReceptor dcrIn = new InboundDistributedComputingReceptor(4002, spIn);
+
+  // Create an &quot;emitter&quot; in which a semantic type emitted on the TestMembrane permeates
+  // into the inner DistributedProcessMembrane for our test type.
+  spOut.AddChild&lt;TestMembrane, DistributedProcessMembrane&gt;();
+  spOut.OutboundPermeableTo&lt;TestMembrane, TestDistributedSemanticType&gt;();
+  spOut.InboundPermeableTo&lt;DistributedProcessMembrane, TestDistributedSemanticType&gt;();
+
+  // The stateful DCR out lives in the distributed process membrane.
+  spOut.Register&lt;DistributedProcessMembrane&gt;(dcrOut);
+
+  // Create a &quot;receiver&quot; in which a semantic type is received on the inner DistributedProcessMembrane
+  // and the test type permeates out to a &quot;handler&quot; receptor.
+  spIn.AddChild&lt;TestMembrane, DistributedProcessMembrane&gt;();
+  spIn.OutboundPermeableTo&lt;DistributedProcessMembrane, TestDistributedSemanticType&gt;();
+  spIn.InboundPermeableTo&lt;TestMembrane, TestDistributedSemanticType&gt;();
+  
+  // The stateful DCR in lives in the distributed process membrane.
+  spIn.Register&lt;DistributedProcessMembrane&gt;(dcrIn);
+  // The responding receptor lives in the TestMembrane
+  spIn.Register&lt;TestMembrane, TestReceptor&gt;();
+
+  // Put a semantic type instance on the outbound side.
+  spOut.ProcessInstance&lt;TestMembrane, TestDistributedSemanticType&gt;((t) =&gt;
+  {
+    t.Message = &quot;Hello World&quot;;
+  });
+
+  // Wait a bit for threads to do their thing and Http posts to do their things.
+  // !*!*!*!* Sometimes this wait must be longer -- the unit test engine can really slow things down.
+  // !*!*!*!* This is particularly true when running the test in the debugger!
+  // !*!*!*!* If this delay isn't long enough for the server's message to be processed, you will get
+  // !*!*!*!* errors related to accessing objects on an unloaded AppDomain.
+  // !*!*!*!* In real life this woudn't happen -- this is an artifact of unit testing a complex
+  // !*!*!*!* multi-threaded process.
+  //Thread.Sleep(500);
+
+  // Because we know it works, we could actually do this, which is particularly useful when we're
+  // debugging and single stepping through code -- we do not want the test in this AppDomain
+  // to exit prematurely!
+  while (String.IsNullOrEmpty(received))
+  {
+    Thread.Sleep(0);
+  }
+
+  Assert.That(received == &quot;Hello World&quot;, &quot;Expected to receive 'Hello World'&quot;);
+}</pre>
+<p>There's a lot going on here:</p>
+<ol>
+	<li>Create two semantic processors, one for the outbound message, one for 
+	the inbound message</li>
+	<li>On the outbound processor, declare:<ol>
+		<li>the two membranes</li>
+		<li>the outbound distributed computing receptor</li>
+	<li>the permeability of the two membranes</li>
+	</ol>
+	</li>
+	<li>On the inbound processor, declare:<ol>
+		<li>the two membranes</li>
+		<li>the outbound distributed computing receptor</li>
+	<li>the test receptor that processes the semantic type</li>
+		<li>the permeability of the two membranes</li>
+	</ol>
+</li>
+</ol>
+<p><img border="0" src="magglass.png" width="64" height="64"> Behind the scenes 
+are the distributed computing receptors.&nbsp; </p>
+<h4>Outbound Distributed Semantic Receptor</h4>
+<p>This receptor is responsible for serializing the semantic type and posting it 
+to our server:</p>
+<pre>public class OutboundDistributedComputingReceptor : IReceptor&lt;ISemanticType&gt;
+{
+  protected int outboundPort;
+
+  public OutboundDistributedComputingReceptor(int outboundPort)
+  {
+    this.outboundPort = outboundPort;
+  }
+
+  public void Process(ISemanticProcessor proc, IMembrane membrane, ISemanticType obj)
+  {
+    string url = String.Format(&quot;http://localhost:{0}/semanticType&quot;, outboundPort);
+    string json = JsonConvert.SerializeObject(obj);
+    // Insert our type name:
+    json = &quot;{\&quot;_type_\&quot;:\&quot;&quot; + obj.GetType().FullName + &quot;\&quot;,&quot; + json.Substring(1);
+    HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
+    request.Method = &quot;POST&quot;;
+    request.ContentType = &quot;application/json&quot;;
+    request.ContentLength = json.Length;
+    Stream st = request.GetRequestStream();
+    byte[] bytes = Encoding.UTF8.GetBytes(json);
+    st.Write(bytes, 0, bytes.Length);
+    st.Close();
+  }
+}</pre>
+<p>We employ a couple tricks:</p>
+<ol>
+	<li>The receptor receives all semantic type objects, so we rely on membrane 
+	filtering to pass through into our inner membrane only the semantic types we 
+	want processed remotely.</li>
+	<li>We inject &quot;_type_&quot; into the JSON so that we know what type to 
+	deserialize into on the other side.</li>
+</ol>
+<h4>Inbound Distributed Semantic Receptor</h4>
+<p>On the inbound side, we set up the server to listen to the &quot;/semanticType&quot; 
+path and rehydrate the semantic type.&nbsp; It is posted to our inner membrane 
+on the second semantic processor, and again we rely on membrane filtering to 
+permeate the desired types out to the outer membrane, where our test receptor 
+sits, waiting for the appropriate semantic type:</p>
+<pre>public class InboundDistributedComputingReceptor : IReceptor
+{
+  protected SemanticProcessor sp; // the processor for the inbound types.
+  protected Server server;
+  protected int outboundPort;
+
+  public InboundDistributedComputingReceptor(int inboundPort, SemanticProcessor sp)
+  {
+    this.sp = sp;
+
+    server = new Server();
+    server.OnRequest = (session, context) =&gt;
+    {
+      session.Authenticated = true;
+      session.UpdateLastConnectionTime();
+    };
+
+    server.AddRoute(new Route() { Verb = Router.POST, Path = &quot;/semanticType&quot;, Handler = new AnonymousRouteHandler(server, ProcessInboundSemanticType) });
+    server.Start(&quot;&quot;, inboundPort);
+  }
+
+  protected ResponsePacket ProcessInboundSemanticType(Session session, Dictionary&lt;string, object&gt; parms)
+  {
+    string json = parms[&quot;Data&quot;].ToString();
+    JObject jobj = JObject.Parse(json);
+    string type = jobj[&quot;_type_&quot;].ToString();
+
+    // strip off the _type_ so we can then instantiate the semantic type.
+    json = &quot;{&quot; + json.RightOf(',');
+    
+    // Requires that the namespace also matches the remote's namespace.
+    Type ttarget = Type.GetType(type); 
+    ISemanticType target = (ISemanticType)Activator.CreateInstance(ttarget);
+    JsonConvert.PopulateObject(json, target);
+    sp.ProcessInstance&lt;DistributedProcessMembrane&gt;(target);
+
+    ResponsePacket ret = new ResponsePacket() { Data = Encoding.UTF8.GetBytes(&quot;OK&quot;), ContentType = &quot;text&quot; };
+
+    return ret;
+  }
+}</pre>
+<p>And because it's so amazing, here is the passing integration test:</p>
+<p align="center"><img border="0" src="pass1.png" width="433" height="127"></p>
+<h2>Conclusion</h2>
+<p>Type First Development (<a href="http://tomasp.net/blog/type-first-development.aspx/">coined</a> 
+by Tomas Petricek) is applicable to imperative languages as well as functional 
+languages.&nbsp; We can use the C#'s type system to create rich types and 
+declaratively establish the relationship between types and the methods that 
+process those types.&nbsp; We can also create containers (membranes) to create 
+computational islands and control the flow of type instances between 
+computational islands.&nbsp; By using a semantic processor, the membranes, types 
+and receptors that are declared in a &quot;semantic system&quot; becomes a expressive 
+computational unit.&nbsp; Specialized receptors, such as the distributed 
+receptors illustrated in this article, demonstrate how easy it is to create a 
+distributed semantic computing system.</p>
+<p>OK, enough of the hifalutin talk.&nbsp; This stuff is damn cool!</p>
 <p>&nbsp;</p>
 
 </body>

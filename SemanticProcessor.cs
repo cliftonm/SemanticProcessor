@@ -112,9 +112,18 @@ namespace Clifton.Semantics
 		}
 
 		public IMembrane RegisterMembrane<M>()
-			where M : IMembrane
+			where M : IMembrane, new()
 		{
-			IMembrane membrane = RegisterMembrane(typeof(M));
+			IMembrane membrane;
+			Type m = typeof(M);
+
+			if (!membranes.TryGetValue(m, out membrane))
+			{
+				membrane = new M();
+				membranes[m] = membrane;
+				membraneReceptorTypes[membrane] = new List<Type>();
+				membraneReceptorInstances[membrane] = new List<IReceptor>();
+			}
 
 			return membrane;
 		}
@@ -126,8 +135,8 @@ namespace Clifton.Semantics
 		/// <typeparam name="Inner"></typeparam>
 		/// <returns></returns>
 		public void AddChild<Outer, Inner>()
-			where Outer : IMembrane
-			where Inner : IMembrane
+			where Outer : IMembrane, new()
+			where Inner : IMembrane, new()
 		{
 			Membrane mOuter = (Membrane)RegisterMembrane<Outer>();
 			Membrane mInner = (Membrane)RegisterMembrane<Inner>();
@@ -135,7 +144,7 @@ namespace Clifton.Semantics
 		}
 
 		public void OutboundPermeableTo<M, T>()
-			where M : IMembrane
+			where M : IMembrane, new()
 			where T : ISemanticType
 		{
 			Membrane m = (Membrane)RegisterMembrane<M>();
@@ -143,7 +152,7 @@ namespace Clifton.Semantics
 		}
 
 		public void InboundPermeableTo<M, T>()
-			where M : IMembrane
+			where M : IMembrane, new()
 			where T : ISemanticType
 		{
 			Membrane m = (Membrane)RegisterMembrane<M>();
@@ -156,21 +165,21 @@ namespace Clifton.Semantics
 		/// instance is auto-created for us if necessary.
 		/// </summary>
 		public void Register<M, T>()
-			where M : IMembrane
+			where M : IMembrane, new()
 			where T : IReceptor
 		{
 			Register<T>();
-			IMembrane membrane = RegisterMembrane(typeof(M));
+			IMembrane membrane = RegisterMembrane<M>();
 			membraneReceptorTypes[membrane].Add(typeof(T));
 		}
 
 		public void Register<M, T>(Action<IReceptor> receptorInitializer)
-			where M : IMembrane
+			where M : IMembrane, new()
 			where T : IReceptor
 		{
 			Register<T>();
 			Type receptorType = typeof(T);
-			IMembrane membrane = RegisterMembrane(typeof(M));
+			IMembrane membrane = RegisterMembrane<M>();
 			membraneReceptorTypes[membrane].Add(receptorType);
 			receptorInitializers[new MembraneReceptor() { Membrane = membrane, ReceptorType = receptorType }] = new ReceptorInitializer() { Initializer = receptorInitializer };
 		}
@@ -179,9 +188,9 @@ namespace Clifton.Semantics
 		/// Register an instance receptor living in a membrane type.
 		/// </summary>
 		public void Register<M>(IReceptor receptor)
-			where M : IMembrane
+			where M : IMembrane, new()
 		{
-			IMembrane membrane = RegisterMembrane(typeof(M));
+			IMembrane membrane = RegisterMembrane<M>();
 			Register(membrane, receptor);
 		}
 
@@ -269,7 +278,7 @@ namespace Clifton.Semantics
 		/// Process a semantic type, allowing the caller to specify an initializer before processing the instance.
 		/// </summary>
 		public void ProcessInstance<M, T>(Action<T> initializer, bool processOnCallerThread = false)
-			where M : IMembrane
+			where M : IMembrane, new()
 			where T : ISemanticType, new()
 		{
 			T inst = new T();
@@ -278,7 +287,7 @@ namespace Clifton.Semantics
 		}
 
 		public void ProcessInstance<M, T>(bool processOnCallerThread = false)
-			where M : IMembrane
+			where M : IMembrane, new()
 			where T : ISemanticType, new()
 		{
 			T inst = new T();
@@ -289,7 +298,7 @@ namespace Clifton.Semantics
 		/// Process an instance in a given membrane type.
 		/// </summary>
 		public void ProcessInstance<M, T>(T obj, bool processOnCallerThread = false)
-			where M : IMembrane
+			where M : IMembrane, new()
 			where T : ISemanticType
 		{
 			Type mtype = typeof(M);
@@ -397,7 +406,7 @@ namespace Clifton.Semantics
 		}
 
 		public void ProcessInstance<M>(ISemanticType obj, bool processOnCallerThread = false)
-			where M : IMembrane
+			where M : IMembrane, new()
 		{
 			IMembrane m = RegisterMembrane<M>();
 			ProcessInstance(m, null, obj, processOnCallerThread);
@@ -503,21 +512,6 @@ namespace Clifton.Semantics
 					TypeNotify<T>(parameters[2].ParameterType);
 				}
 			}
-		}
-
-		protected IMembrane RegisterMembrane(Type m)
-		{
-			IMembrane membrane;
-
-			if (!membranes.TryGetValue(m, out membrane))
-			{
-				membrane = (IMembrane)Activator.CreateInstance(m);
-				membranes[m] = membrane;
-				membraneReceptorTypes[membrane] = new List<Type>();
-				membraneReceptorInstances[membrane] = new List<IReceptor>();
-			}
-
-			return membrane;
 		}
 
 		/// <summary>

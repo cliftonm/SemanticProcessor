@@ -52,7 +52,7 @@ namespace Clifton.Semantics.UnitTests
 		}
 
 		/// <summary>
-		/// Test the a process call is logged.
+		/// Verify the a process call is logged.
 		/// </summary>
 		[Test]
 		public void ProcessCallIsLogged()

@@ -12,24 +12,24 @@ namespace Clifton.Semantics
 		IMembrane Logger { get; }
 
 		void Register<M, T>()
-			where M : IMembrane
+			where M : IMembrane, new()
 			where T : IReceptor;
 
 		void Register<M>(IReceptor receptor)
-			where M : IMembrane;
+			where M : IMembrane, new();
 
 		void Register(IMembrane membrane, IReceptor receptor);
 
 		void ProcessInstance<M, T>(Action<T> initializer, bool processOnCallerThread = false)
-			where M : IMembrane
+			where M : IMembrane, new()
 			where T : ISemanticType, new();
 
 		void ProcessInstance<M, T>(bool processOnCallerThread = false)
-			where M : IMembrane
+			where M : IMembrane, new()
 			where T : ISemanticType, new();
 
 		void ProcessInstance<M, T>(T obj, bool processOnCallerThread = false)
-			where M : IMembrane
+			where M : IMembrane, new()
 			where T : ISemanticType;
 
 		void ProcessInstance<T>(IMembrane membrane, T obj, bool processOnCallerThread = false)
